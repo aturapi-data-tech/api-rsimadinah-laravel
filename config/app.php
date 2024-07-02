@@ -169,7 +169,7 @@ return [
         App\Providers\EventServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
 
-        Yajra\DataTables\DataTablesServiceProvider::class,
+        Yajra\Oci8\Oci8ServiceProvider::class,
     ])->toArray(),
 
     /*
