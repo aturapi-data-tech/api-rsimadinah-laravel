@@ -116,17 +116,7 @@ trait TraitJWTRsiMadinah
     {
         if ($this->checkUser($username, $password)) {
             $gtoken = $this->encode_jwt($this->payloadtoken($username), $this->privateKey());
-            return $this->sendResponse($gtoken, 200);
-            // $response = array(
-            //     'response' => array(
-            //         'token' => $gtoken
-            //     ),
-            //     'metadata' => array(
-            //         'message' => 'Ok',
-            //         'code' => 200
-            //     )
-            // );
-            // $status = http_response_code(200);
+            return $gtoken;
         } else {
             $response = array(
                 'metadata' => array(
@@ -233,7 +223,7 @@ trait TraitJWTRsiMadinah
                 'code' =>  $code,
             ],
         ];
-        return json_decode(json_encode($response));
+        return response()->json($response, $code);
     }
     public function sendError($error,  $code = 404)
     {
@@ -244,6 +234,6 @@ trait TraitJWTRsiMadinah
                 'code' => $code,
             ],
         ];
-        return json_decode(json_encode($response));
+        return response()->json($response, $code);
     }
 }

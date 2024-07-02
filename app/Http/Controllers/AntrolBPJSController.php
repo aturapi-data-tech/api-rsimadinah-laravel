@@ -67,11 +67,75 @@ class AntrolBPJSController extends Controller
 
                 $request['tanggalawal'] = Carbon::parse($request->tanggalawal)->startOfDay();
                 $request['tanggalakhir'] = Carbon::parse($request->tanggalakhir)->endOfDay();
-                // end auth token
+
                 $jadwalops = DB::table('booking_operasi')
                     ->whereBetween('tanggal', [$request->tanggalawal, $request->tanggalakhir])
                     ->get();
+                // if data kosong
+                if (!$jadwalops->count()) {
+                    return $this->sendError('Data Tidak ditemukan',);
+                }
 
+                $jadwals = [];
+                foreach ($jadwalops as  $jadwalop) {
+                    $jadwals[] = [
+                        "kodebooking" => $jadwalop->no_rawat,
+                        "tanggaloperasi" => Carbon::parse($jadwalop->tanggal)->format('Y-m-d'),
+                        "jenistindakan" => $jadwalop->nm_paket,
+                        "kodepoli" =>  $jadwalop->POLI_ID ?? 'BED',
+                        // "namapoli" => $jadwalop->ruangan_asal,
+                        "namapoli" => 'BEDAH',
+                        "terlaksana" => $jadwalop->status == 'Menunggu' ? 0 : 1,
+                        "nopeserta" => $jadwalop->no_peserta,
+                        "lastupdate" => now()->timestamp * 1000,
+                    ];
+                }
+                $response = [
+                    "list" => $jadwals
+                ];
+                return $this->sendResponse($response, 200);
+            }
+        }
+        return $this->sendError("Unauthorized ", 401);
+    }
+
+    public function jadwaloperasipasien(Request $request)
+    {
+
+        $credentials = [
+            'name' => $request->header('x-username'),
+            'token' => $request->header('x-token')
+
+        ];
+
+        $username = isset(User::where('name', $credentials['name'])->first()->name) ? User::where('name', $credentials['name'])->first()->name : '';
+        // jika user name ditemukan
+        if ($username == $credentials['name']) {
+            // jika token name ditemukan
+            if ((!empty($credentials['token']))
+                && (User::where('name', $credentials['name'])->first()->name == $credentials['name'])
+                && ($this->cektoken($credentials['token']))
+            ) {
+
+                //proses data
+                // Validator
+                $validator = Validator::make($request->all(), [
+                    "nopeserta" => "required|digits:13",
+                ]);
+                // if valoidator fails
+                if ($validator->fails()) {
+                    return $this->sendError($validator->errors()->first(),  201);
+                }
+
+
+                $jadwalops = DB::table('booking_operasi')
+                    ->where('no_peserta', [$request->nopeserta])
+                    ->get();
+
+                // if data kosong
+                if (!$jadwalops->count()) {
+                    return $this->sendError('Data Tidak ditemukan',);
+                }
 
                 $jadwals = [];
                 foreach ($jadwalops as  $jadwalop) {

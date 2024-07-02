@@ -20,5 +20,6 @@ use App\Http\Controllers\AntrolBPJSController;
 
 
 
-Route::get('token', [AntrolBPJSController::class, 'token'])->name('token');
+Route::get('auth', [AntrolBPJSController::class, 'token'])->name('token');
 Route::post('jadwaloperasirs', [AntrolBPJSController::class, 'jadwaloperasirs'])->name('jadwaloperasirs');
+Route::post('jadwaloperasipasien', [AntrolBPJSController::class, 'jadwaloperasipasien'])->name('jadwaloperasipasien');
