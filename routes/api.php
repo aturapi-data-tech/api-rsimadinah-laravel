@@ -21,5 +21,17 @@ use App\Http\Controllers\AntrolBPJSController;
 
 
 Route::get('auth', [AntrolBPJSController::class, 'token'])->name('token');
+// operasi
 Route::post('jadwaloperasirs', [AntrolBPJSController::class, 'jadwaloperasirs'])->name('jadwaloperasirs');
 Route::post('jadwaloperasipasien', [AntrolBPJSController::class, 'jadwaloperasipasien'])->name('jadwaloperasipasien');
+
+// JKN
+Route::post('ambilantrean', [AntrolBPJSController::class, 'ambilantrean'])->name('ambilantrean');
+Route::post('checkinantrean', [AntrolBPJSController::class, 'checkinantrean'])->name('checkinantrean');
+Route::post('batalantrean', [AntrolBPJSController::class, 'batalantrean'])->name('batalantrean');
+Route::post('statusantrean', [AntrolBPJSController::class, 'statusantrean'])->name('statusantrean');
+
+
+
+
+Route::post('x', [AntrolBPJSController::class, 'x'])->name('x');

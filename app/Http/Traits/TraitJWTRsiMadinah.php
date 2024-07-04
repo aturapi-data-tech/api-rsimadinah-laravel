@@ -12,17 +12,17 @@ trait TraitJWTRsiMadinah
 
 
 
-    public function urlsafeB64Encode($input)
+    private function urlsafeB64Encode($input)
     {
         return str_replace(['+/', '='], ['-_', ''], base64_encode($input));
     }
 
-    public function urlsafeB64Decode($input)
+    private function urlsafeB64Decode($input)
     {
         return str_replace(['-_', ''], ['+/',  '='], base64_decode($input));
     }
 
-    public function signnature($msg, $key, $alg = 'HS256')
+    private function signnature($msg, $key, $alg = 'HS256')
     {
         list($function, $algorithm) = $this->algoritm($alg);
         switch ($function) {
@@ -33,7 +33,7 @@ trait TraitJWTRsiMadinah
 
 
 
-    public function encode_jwt($payload, $key, $alg = 'HS256')
+    private function encode_jwt($payload, $key, $alg = 'HS256')
     {
         $header = json_encode(['typ' => 'JWT', 'alg' => $alg]);
         $payload = json_encode($payload);
@@ -46,7 +46,7 @@ trait TraitJWTRsiMadinah
         return implode('.', $segments);
     }
 
-    public function decode_jwt($token, $key, array $allowed_algs = array())
+    private function decode_jwt($token, $key, array $allowed_algs = array())
     {
         if (empty($key)) {
             throw new \Exception('Key may not be empty');
@@ -117,16 +117,8 @@ trait TraitJWTRsiMadinah
         if ($this->checkUser($username, $password)) {
             $gtoken = $this->encode_jwt($this->payloadtoken($username), $this->privateKey());
             return $gtoken;
-        } else {
-            $response = array(
-                'metadata' => array(
-                    'message' => 'Username atau Password Tidak Sesuai',
-                    'code' => 201
-                )
-            );
-            // $status = http_response_code(201);
         }
-        return $response;
+        return 'x';
     }
 
     public function cektoken($token)
@@ -148,19 +140,14 @@ trait TraitJWTRsiMadinah
         }
     }
 
-
-
-
-
-
     // /* ---------------------- Configurasi TOKEN Information ----------------*/
-    public function privateKey()
+    private function privateKey()
     {
         $key = '123!!abc**siRUS';
         return $key;
     }
 
-    public function algoritm($alg)
+    private function algoritm($alg)
     {
         $supported_algs = array(
             'ES256' => array('openssl', 'SHA256'),
@@ -174,7 +161,7 @@ trait TraitJWTRsiMadinah
         return $supported_algs[$alg];
     }
 
-    public function verify($msg, $signature, $key, $alg)
+    private function verify($msg, $signature, $key, $alg)
     {
         if (empty($this->algoritm($alg))) {
             throw new \Exception('Algorithm not supported');
@@ -200,7 +187,7 @@ trait TraitJWTRsiMadinah
         }
     }
 
-    public function payloadtoken($username)
+    private function payloadtoken($username)
     {
         $token = array(
             "iss" => "Madinah REST API", //Pembuat Token
@@ -235,5 +222,27 @@ trait TraitJWTRsiMadinah
             ],
         ];
         return response()->json($response, $code);
+    }
+
+    public function hariIndo($hariInggris)
+    {
+        switch ($hariInggris) {
+            case 'Sunday':
+                return 'Minggu';
+            case 'Monday':
+                return 'Senin';
+            case 'Tuesday':
+                return 'Selasa';
+            case 'Wednesday':
+                return 'Rabu';
+            case 'Thursday':
+                return 'Kamis';
+            case 'Friday':
+                return 'Jumat';
+            case 'Saturday':
+                return 'Sabtu';
+            default:
+                return 'hari tidak valid';
+        }
     }
 }
