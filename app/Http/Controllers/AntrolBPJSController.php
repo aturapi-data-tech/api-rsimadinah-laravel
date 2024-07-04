@@ -805,6 +805,189 @@ class AntrolBPJSController extends Controller
         return $this->sendError("Unauthorized ", 401);
     }
 
+    public function sisaantrean(Request $request)
+    {
+
+        $credentials = [
+            'name' => $request->header('x-username'),
+            'token' => $request->header('x-token')
+
+        ];
+
+        $username = isset(User::where('name', $credentials['name'])->first()->name) ? User::where('name', $credentials['name'])->first()->name : '';
+        // jika user name ditemukan
+        if ($username == $credentials['name']) {
+            // jika token name ditemukan
+            if ((!empty($credentials['token']))
+                && (User::where('name', $credentials['name'])->first()->name == $credentials['name'])
+            ) {
+                // cek token
+                if ($this->cektoken($credentials['token']) != 1) {
+                    return ($this->cektoken($credentials['token']));
+                }
+                //proses data
+                // Validator
+                $validator = Validator::make($request->all(), [
+                    "kodebooking" => "required",
+                ]);
+
+                // if valoidator fails
+                if ($validator->fails()) {
+                    return $this->sendError($validator->errors()->first(),  400);
+                }
+
+                $antrian = DB::table('referensi_mobilejkn_bpjs')
+                    ->where('nobooking', $request->kodebooking)
+                    ->first();
+
+                if (!$antrian) {
+                    return $this->sendError("No Booking (" . $request->kodebooking . ") invalid.",  409);
+                }
+
+                if ($antrian->status == 'Batal') {
+                    return $this->sendError("Antrian telah dibatalkan sebelumnya.", 400);
+                }
+
+                if ($antrian->status != 'Checkin') {
+                    return $this->sendError("Status Belum Checkin " . $request->kodebooking, 400);
+                }
+
+                // Pasien Dilayani
+                $queryPasienRJ = DB::table('rsview_rjkasir')
+                    ->select(
+                        DB::raw("to_char(rj_date,'dd/mm/yyyy hh24:mi:ss') AS rj_date"),
+                        DB::raw("to_char(rj_date,'yyyymmddhh24miss') AS rj_date1"),
+                        'rj_no',
+                        'reg_no',
+                        'reg_name',
+                        'sex',
+                        'address',
+                        'thn',
+                        'poli_desc',
+                        'dr_name',
+                        'no_antrian',
+                        'waktu_masuk_poli',
+                        'waktu_masuk_apt',
+                        'kd_poli_bpjs',
+                        'kd_dr_bpjs'
+                    )
+                    ->where('nobooking', '=',  $request->kodedokter ? $request->kodedokter : '')
+                    ->first();
+
+
+
+
+                $noAntrian = isset($queryPasienRJ->no_antrian) ?
+                    (($queryPasienRJ->no_antrian)
+                        ? $queryPasienRJ->no_antrian
+                        : 0)
+                    : 0;
+
+                if (!$noAntrian) {
+                    return $this->sendError("Data pasien tidak diteukan " . $request->kodebooking, 201);
+                }
+
+                $waktuMasukPoli = isset($queryPasienRJ->waktu_masuk_poli) ?
+                    (($queryPasienRJ->waktu_masuk_poli)
+                        ? $queryPasienRJ->waktu_masuk_poli
+                        : 0)
+                    : 0;
+
+                $poliDesc = isset($queryPasienRJ->poli_desc) ?
+                    (($queryPasienRJ->poli_desc)
+                        ? $queryPasienRJ->poli_desc
+                        : 0)
+                    : 0;
+
+                $drName = isset($queryPasienRJ->dr_name) ?
+                    (($queryPasienRJ->dr_name)
+                        ? $queryPasienRJ->dr_name
+                        : 0)
+                    : 0;
+
+                $kd_poli_bpjs = isset($queryPasienRJ->kd_poli_bpjs) ?
+                    (($queryPasienRJ->kd_poli_bpjs)
+                        ? $queryPasienRJ->kd_poli_bpjs
+                        : 0)
+                    : 0;
+
+                $kd_dr_bpjs = isset($queryPasienRJ->kd_dr_bpjs) ?
+                    (($queryPasienRJ->kd_dr_bpjs)
+                        ? $queryPasienRJ->kd_dr_bpjs
+                        : 0)
+                    : 0;
+
+                $hari = strtoupper($this->hariIndo(Carbon::now()->dayName));
+                $cekDaftar = DB::table('scview_scpolis')
+                    ->select('kuota', 'mulai_praktek', 'selesai_praktek', 'poli_id', 'dr_id', 'poli_desc', 'dr_name', 'shift')
+                    ->where('kd_poli_bpjs', $kd_poli_bpjs)
+                    ->where('kd_dr_bpjs', $kd_dr_bpjs)
+                    ->where('day_desc', $hari)
+                    // ->where('mulai_praktek', $jammulai . ':00')
+                    // ->where('selesai_praktek', $jamselesai . ':00')
+                    ->first();
+
+                $kuota = isset($cekDaftar->kuota) ?
+                    (($cekDaftar->kuota)
+                        ? $cekDaftar->kuota
+                        : 0)
+                    : 0;
+
+
+                $response = [
+                    "nomorantrean" => $noAntrian,
+                    "namapoli" => $poliDesc,
+                    "namadokter" => $drName,
+                    "sisaantrean" => $kuota -  $noAntrian,
+                    "antreanpanggil" => $waktuMasukPoli,
+                    "waktutunggu" => $kuota -  $noAntrian,
+                    "keterangan" => "Informasi antrian poliklinik " . Carbon::now()->format('Y-m-d H:i:s'),
+
+                ];
+
+                return $this->sendResponse($response, 200);
+            }
+        }
+        return $this->sendError("Unauthorized ", 401);
+    }
+
+    public function pasienbaru(Request $request)
+    {
+
+        $credentials = [
+            'name' => $request->header('x-username'),
+            'token' => $request->header('x-token')
+
+        ];
+
+        $username = isset(User::where('name', $credentials['name'])->first()->name) ? User::where('name', $credentials['name'])->first()->name : '';
+        // jika user name ditemukan
+        if ($username == $credentials['name']) {
+            // jika token name ditemukan
+            if ((!empty($credentials['token']))
+                && (User::where('name', $credentials['name'])->first()->name == $credentials['name'])
+            ) {
+                // cek token
+                if ($this->cektoken($credentials['token']) != 1) {
+                    return ($this->cektoken($credentials['token']));
+                }
+                //proses data
+                // Validator
+                $validator = Validator::make($request->all(), [
+                    "kodebooking" => "required",
+                ]);
+
+                // if valoidator fails
+                if ($validator->fails()) {
+                    return $this->sendError($validator->errors()->first(),  400);
+                }
+
+                return $this->sendError("Anda belum memiliki No RM di RSI Madinah (Pasien Baru). Silahkan daftar secara offline.", 400);
+            }
+        }
+        return $this->sendError("Unauthorized ", 401);
+    }
+
     /////////////////////////////
     // Push ke BPJS Antrol task ID
     /////////////////////////////

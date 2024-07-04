@@ -30,6 +30,10 @@ Route::post('ambilantrean', [AntrolBPJSController::class, 'ambilantrean'])->name
 Route::post('checkinantrean', [AntrolBPJSController::class, 'checkinantrean'])->name('checkinantrean');
 Route::post('batalantrean', [AntrolBPJSController::class, 'batalantrean'])->name('batalantrean');
 Route::post('statusantrean', [AntrolBPJSController::class, 'statusantrean'])->name('statusantrean');
+Route::post('sisaantrean', [AntrolBPJSController::class, 'sisaantrean'])->name('sisaantrean');
+Route::post('pasienbaru', [AntrolBPJSController::class, 'pasienbaru'])->name('pasienbaru');
+
+
 
 
 
