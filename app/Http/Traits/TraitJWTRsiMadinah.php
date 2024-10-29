@@ -3,7 +3,8 @@
 namespace App\Http\Traits;
 
 use Illuminate\Support\Facades\Auth;
-
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 trait TraitJWTRsiMadinah
 {
@@ -200,9 +201,21 @@ trait TraitJWTRsiMadinah
         );
         return $token;
     }
-
-    public function sendResponse($data, int $code = 200)
+    public function loggingMyRequest($request)
     {
+        $log = [
+            'method' => $request->method(),
+            'url' => $request->fullUrl(),
+            'ip' => $request->ip(),
+            'headers' => $request->headers->all(),
+            'body' => $request->getContent(),
+        ];
+        return $log;
+    }
+    public function sendResponse($request, $data, int $code = 200)
+    {
+        $logInfo = $this->loggingMyRequest($request);
+
         $response = [
             'response' => $data,
             'metadata' => [
@@ -210,10 +223,20 @@ trait TraitJWTRsiMadinah
                 'code' =>  $code,
             ],
         ];
+
+        DB::table('api_log_status')->insert([
+            'datetime' =>  Carbon::now(),
+            'response' => json_encode($response, true),
+            'request' => json_encode($logInfo, true),
+        ]);
+
+
         return response()->json($response, $code);
     }
-    public function sendError($error,  $code = 404)
+    public function sendError($request, $error,  $code = 404)
     {
+        $logInfo =  $this->loggingMyRequest($request);
+
         $code = $code ?? 404;
         $response = [
             'metadata' => [
@@ -221,6 +244,13 @@ trait TraitJWTRsiMadinah
                 'code' => $code,
             ],
         ];
+
+        DB::table('api_log_status')->insert([
+            'datetime' =>  Carbon::now(),
+            'response' => json_encode($response, true),
+            'request' => json_encode($logInfo, true),
+        ]);
+
         return response()->json($response, $code);
     }
 

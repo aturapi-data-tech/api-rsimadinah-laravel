@@ -31,9 +31,9 @@ class AntrolBPJSController extends Controller
         if (Auth::attempt($credentials)) {
             $token = $this->createToken($credentials['name'], $credentials['password']);
             $data['token'] =  $token;
-            return $this->sendResponse($data, 200);
+            return $this->sendResponse($request, $data, 200);
         } else {
-            return $this->sendError("Unauthorized (Username dan Password Salah)", 401);
+            return $this->sendError($request, "Unauthorized (Username dan Password Salah)", 401);
         }
     }
 
@@ -66,7 +66,7 @@ class AntrolBPJSController extends Controller
                 ]);
                 // if valoidator fails
                 if ($validator->fails()) {
-                    return $this->sendError($validator->errors()->first(),  400);
+                    return $this->sendError($request, $validator->errors()->first(),  400);
                 }
 
                 $request['tanggalawal'] = Carbon::parse($request->tanggalawal)->startOfDay();
@@ -77,7 +77,7 @@ class AntrolBPJSController extends Controller
                     ->get();
                 // if data kosong
                 if (!$jadwalops->count()) {
-                    return $this->sendError('Data Tidak ditemukan',);
+                    return $this->sendError($request, 'Data Tidak ditemukan',);
                 }
 
                 $jadwals = [];
@@ -97,10 +97,10 @@ class AntrolBPJSController extends Controller
                 $response = [
                     "list" => $jadwals
                 ];
-                return $this->sendResponse($response, 200);
+                return $this->sendResponse($request, $response, 200);
             }
         }
-        return $this->sendError("Unauthorized ", 401);
+        return $this->sendError($request, "Unauthorized ", 401);
     }
 
     public function jadwaloperasipasien(Request $request)
@@ -131,7 +131,7 @@ class AntrolBPJSController extends Controller
                 ]);
                 // if valoidator fails
                 if ($validator->fails()) {
-                    return $this->sendError($validator->errors()->first(),  400);
+                    return $this->sendError($request, $validator->errors()->first(),  400);
                 }
 
 
@@ -141,7 +141,7 @@ class AntrolBPJSController extends Controller
 
                 // if data kosong
                 if (!$jadwalops->count()) {
-                    return $this->sendError('Data Tidak ditemukan',);
+                    return $this->sendError($request, 'Data Tidak ditemukan',);
                 }
 
                 $jadwals = [];
@@ -161,10 +161,10 @@ class AntrolBPJSController extends Controller
                 $response = [
                     "list" => $jadwals
                 ];
-                return $this->sendResponse($response, 200);
+                return $this->sendResponse($request, $response, 200);
             }
         }
-        return $this->sendError("Unauthorized ", 401);
+        return $this->sendError($request, "Unauthorized ", 401);
     }
     // Jadwal operasi///////////////////////////////
 
@@ -217,16 +217,16 @@ class AntrolBPJSController extends Controller
 
                 // if valoidator fails
                 if ($validator->fails()) {
-                    return $this->sendError($validator->errors()->first(), 400);
+                    return $this->sendError($request, $validator->errors()->first(), 400);
                 }
 
                 // check tanggal backdate
                 if (Carbon::parse($request->tanggalperiksa)->endOfDay()->isPast()) {
-                    return $this->sendError("Tanggal periksa sudah terlewat", 400);
+                    return $this->sendError($request, "Tanggal periksa sudah terlewat", 400);
                 }
                 // check tanggal hanya 7 hari
                 if (Carbon::parse($request->tanggalperiksa) >  Carbon::now()->addDay(6)) {
-                    return $this->sendError("Antrian hanya dapat dibuat untuk 7 hari ke kedepan", 400);
+                    return $this->sendError($request, "Antrian hanya dapat dibuat untuk 7 hari ke kedepan", 400);
                 }
 
                 // cek duplikasi nik antrian
@@ -236,7 +236,7 @@ class AntrolBPJSController extends Controller
                     ->first();
 
                 if ($antrian_nik) {
-                    return $this->sendError("Terdapat Antrian (" . $antrian_nik->nobooking . ") dengan nomor NIK yang sama pada tanggal tersebut yang belum selesai. Silahkan batalkan terlebih dahulu jika ingin mendaftarkan lagi.",  409);
+                    return $this->sendError($request, "Terdapat Antrian (" . $antrian_nik->nobooking . ") dengan nomor NIK yang sama pada tanggal tersebut yang belum selesai. Silahkan batalkan terlebih dahulu jika ingin mendaftarkan lagi.",  409);
                 }
 
                 // // cek pasien baru
@@ -245,26 +245,26 @@ class AntrolBPJSController extends Controller
                 $pasien = DB::table('rsmst_pasiens')->where('nokartu_bpjs',  $request->nomorkartu)->first();
 
                 if (empty($pasien)) {
-                    return $this->sendError("Nomor Kartu BPJS Pasien termasuk Pasien Baru di RSI Madinah. Silahkan daftar melalui pendaftaran offline",  201);
+                    return $this->sendError($request, "Nomor Kartu BPJS Pasien termasuk Pasien Baru di RSI Madinah. Silahkan daftar melalui pendaftaran offline",  201);
                 }
 
                 // cek no kartu sesuai tidak
                 if ($pasien->nik_bpjs != $request->nik) {
-                    return $this->sendError("NIK anda yang terdaftar di BPJS dengan Di RSI Madinah berbeda. Silahkan perbaiki melalui pendaftaran offline",  201);
+                    return $this->sendError($request, "NIK anda yang terdaftar di BPJS dengan Di RSI Madinah berbeda. Silahkan perbaiki melalui pendaftaran offline",  201);
                 }
 
                 // cek dokter
                 $kd_dr_bpjs = DB::table('rsmst_doctors')->where('kd_dr_bpjs',  $request->kodedokter ? $request->kodedokter : '')->get();
 
                 if (!$kd_dr_bpjs->count()) {
-                    return $this->sendError("Dokter tidak ditemukan",  201);
+                    return $this->sendError($request, "Dokter tidak ditemukan",  201);
                 }
 
                 // cek poli
                 $kd_poli_bpjs = DB::table('rsmst_polis')->where('kd_poli_bpjs',  $request->kodepoli ? $request->kodepoli : '')->get();
 
                 if (!$kd_poli_bpjs->count()) {
-                    return $this->sendError("Poli tidak ditemukan",  201);
+                    return $this->sendError($request, "Poli tidak ditemukan",  201);
                 }
 
                 $hari = strtoupper($this->hariIndo(Carbon::parse($request->tanggalperiksa)->dayName));
@@ -298,11 +298,11 @@ class AntrolBPJSController extends Controller
                     : 0;
 
                 if (!$kuota) {
-                    return $this->sendError("Pendaftaran ke Poli ini tidak tersedia",  201);
+                    return $this->sendError($request, "Pendaftaran ke Poli ini tidak tersedia",  201);
                 }
 
                 if ($cekQuota->kuota - $cekDaftar->count() == 0) {
-                    return $this->sendError("Quota tidak tersedia",  201);
+                    return $this->sendError($request, "Quota tidak tersedia",  201);
                 }
 
 
@@ -381,10 +381,10 @@ class AntrolBPJSController extends Controller
                     "keterangan" => 'Peserta harap 60 menit lebih awal guna pencatatan administrasi',
                 ];
 
-                return $this->sendResponse($response, 200);
+                return $this->sendResponse($request, $response, 200);
             }
         }
-        return $this->sendError("Unauthorized ", 401);
+        return $this->sendError($request, "Unauthorized ", 401);
     }
 
     public function checkinantrean(Request $request)
@@ -421,7 +421,7 @@ class AntrolBPJSController extends Controller
 
                 // if valoidator fails
                 if ($validator->fails()) {
-                    return $this->sendError($validator->errors()->first(), 400);
+                    return $this->sendError($request, $validator->errors()->first(), 400);
                 }
 
                 $antrian = DB::table('referensi_mobilejkn_bpjs')
@@ -429,19 +429,19 @@ class AntrolBPJSController extends Controller
                     ->first();
 
                 if (!$antrian) {
-                    return $this->sendError("No Booking (" . $request->kodebooking . ") invalid.",  409);
+                    return $this->sendError($request, "No Booking (" . $request->kodebooking . ") invalid.",  409);
                 }
 
                 if (!Carbon::parse($antrian->tanggalperiksa)->isToday()) {
-                    return $this->sendError("Tanggal periksa bukan hari ini.", 400);
+                    return $this->sendError($request, "Tanggal periksa bukan hari ini.", 400);
                 }
 
                 if ($antrian->status == 'Batal') {
-                    return $this->sendError("Antrian telah dibatalkan sebelumnya.", 400);
+                    return $this->sendError($request, "Antrian telah dibatalkan sebelumnya.", 400);
                 }
 
                 if ($antrian->status == 'Checkin') {
-                    return $this->sendError("Anda Sudah Checkin pada " . $antrian->validasi, 400);
+                    return $this->sendError($request, "Anda Sudah Checkin pada " . $antrian->validasi, 400);
                 }
 
                 // checkin +- 1jam
@@ -455,11 +455,11 @@ class AntrolBPJSController extends Controller
                 // return ($checkIn1Jam . '  ' . $tanggalperiksa . '  ' . $waktucheckin);
 
                 if ($checkIn1Jam < -1) {
-                    return $this->sendError("Lakukan Chekin 1 Jam Sebelum Pelayanan, Pelayanan dimulai " . $tanggalperiksa, 400);
+                    return $this->sendError($request, "Lakukan Chekin 1 Jam Sebelum Pelayanan, Pelayanan dimulai " . $tanggalperiksa, 400);
                 }
 
                 if ($checkIn1Jam > 1) {
-                    return $this->sendError("Chekin Anda sudah expired " . $checkIn1Jam . " Jam yang lalu, Silahkan konfirmasi ke loket pendaftaran ", 400);
+                    return $this->sendError($request, "Chekin Anda sudah expired " . $checkIn1Jam . " Jam yang lalu, Silahkan konfirmasi ke loket pendaftaran ", 400);
                 }
 
                 // cek Quota sebelum checkin
@@ -490,11 +490,11 @@ class AntrolBPJSController extends Controller
                     : 0;
 
                 if (!$kuota) {
-                    return $this->sendError("Pendaftaran ke Poli ini tidak tersedia",  201);
+                    return $this->sendError($request, "Pendaftaran ke Poli ini tidak tersedia",  201);
                 }
 
                 if ($cekQuota->kuota - $cekDaftar->count() == 0) {
-                    return $this->sendError("Quota tidak tersedia",  201);
+                    return $this->sendError($request, "Quota tidak tersedia",  201);
                 }
 
                 // update mobile JKN
@@ -586,10 +586,10 @@ class AntrolBPJSController extends Controller
 
                 $this->pushDataAntrian($myAntreanadd, $rjNo, $request->kodebooking, $request->waktu);
 
-                return $this->sendResponse("OK", 200);
+                return $this->sendResponse($request, "OK", 200);
             }
         }
-        return $this->sendError("Unauthorized ", 401);
+        return $this->sendError($request, "Unauthorized ", 401);
     }
 
     public function batalantrean(Request $request)
@@ -621,7 +621,7 @@ class AntrolBPJSController extends Controller
 
                 // if valoidator fails
                 if ($validator->fails()) {
-                    return $this->sendError($validator->errors()->first(),  400);
+                    return $this->sendError($request, $validator->errors()->first(),  400);
                 }
 
                 $antrian = DB::table('referensi_mobilejkn_bpjs')
@@ -629,19 +629,19 @@ class AntrolBPJSController extends Controller
                     ->first();
 
                 if (!$antrian) {
-                    return $this->sendError("No Booking (" . $request->kodebooking . ") invalid.",  409);
+                    return $this->sendError($request, "No Booking (" . $request->kodebooking . ") invalid.",  409);
                 }
 
                 if (!Carbon::parse($antrian->tanggalperiksa)->isToday()) {
-                    return $this->sendError("Tanggal periksa bukan hari ini.", 400);
+                    return $this->sendError($request, "Tanggal periksa bukan hari ini.", 400);
                 }
 
                 if ($antrian->status == 'Batal') {
-                    return $this->sendError("Antrian telah dibatalkan sebelumnya.", 400);
+                    return $this->sendError($request, "Antrian telah dibatalkan sebelumnya.", 400);
                 }
 
                 if ($antrian->status == 'Checkin') {
-                    return $this->sendError("Pembatalan tidakbisa dilakukan, Anda Sudah Checkin pada " . $antrian->validasi, 400);
+                    return $this->sendError($request, "Pembatalan tidakbisa dilakukan, Anda Sudah Checkin pada " . $antrian->validasi, 400);
                 }
 
                 // update mobile JKN
@@ -654,10 +654,10 @@ class AntrolBPJSController extends Controller
 
 
 
-                return $this->sendResponse("OK", 200);
+                return $this->sendResponse($request, "OK", 200);
             }
         }
-        return $this->sendError("Unauthorized ", 401);
+        return $this->sendError($request, "Unauthorized ", 401);
     }
     public function statusantrean(Request $request)
     {
@@ -690,25 +690,25 @@ class AntrolBPJSController extends Controller
 
                 // if valoidator fails
                 if ($validator->fails()) {
-                    return $this->sendError($validator->errors()->first(),  400);
+                    return $this->sendError($request, $validator->errors()->first(),  400);
                 }
 
                 if (Carbon::parse($request->tanggalperiksa)->endOfDay()->isPast()) {
-                    return $this->sendError("Tanggal periksa sudah terlewat", 401);
+                    return $this->sendError($request, "Tanggal periksa sudah terlewat", 401);
                 }
 
                 // cek dokter
                 $kd_dr_bpjs = DB::table('rsmst_doctors')->where('kd_dr_bpjs',  $request->kodedokter ? $request->kodedokter : '')->get();
 
                 if (!$kd_dr_bpjs->count()) {
-                    return $this->sendError("Dokter tidak ditemukan",  201);
+                    return $this->sendError($request, "Dokter tidak ditemukan",  201);
                 }
 
                 // cek poli
                 $kd_poli_bpjs = DB::table('rsmst_polis')->where('kd_poli_bpjs',  $request->kodepoli ? $request->kodepoli : '')->get();
 
                 if (!$kd_poli_bpjs->count()) {
-                    return $this->sendError("Poli tidak ditemukan",  201);
+                    return $this->sendError($request, "Poli tidak ditemukan",  201);
                 }
 
 
@@ -740,11 +740,11 @@ class AntrolBPJSController extends Controller
                     : 0;
 
                 if (!$kuota) {
-                    return $this->sendError("Poli ini tidak tersedia",  201);
+                    return $this->sendError($request, "Poli ini tidak tersedia",  201);
                 }
 
                 if ($cekQuota->kuota - $cekDaftar->count() == 0) {
-                    return $this->sendError("Quota tidak tersedia",  201);
+                    return $this->sendError($request, "Quota tidak tersedia",  201);
                 }
 
                 // Pasien Dilayani
@@ -799,10 +799,10 @@ class AntrolBPJSController extends Controller
                     "keterangan" => "Informasi antrian poliklinik " . Carbon::now()->format('Y-m-d H:i:s'),
                 ];
 
-                return $this->sendResponse($response, 200);
+                return $this->sendResponse($request, $response, 200);
             }
         }
-        return $this->sendError("Unauthorized ", 401);
+        return $this->sendError($request, "Unauthorized ", 401);
     }
 
     public function sisaantrean(Request $request)
@@ -833,7 +833,7 @@ class AntrolBPJSController extends Controller
 
                 // if valoidator fails
                 if ($validator->fails()) {
-                    return $this->sendError($validator->errors()->first(),  400);
+                    return $this->sendError($request, $validator->errors()->first(),  400);
                 }
 
                 $antrian = DB::table('referensi_mobilejkn_bpjs')
@@ -841,15 +841,15 @@ class AntrolBPJSController extends Controller
                     ->first();
 
                 if (!$antrian) {
-                    return $this->sendError("No Booking (" . $request->kodebooking . ") invalid.",  409);
+                    return $this->sendError($request, "No Booking (" . $request->kodebooking . ") invalid.",  409);
                 }
 
                 if ($antrian->status == 'Batal') {
-                    return $this->sendError("Antrian telah dibatalkan sebelumnya.", 400);
+                    return $this->sendError($request, "Antrian telah dibatalkan sebelumnya.", 400);
                 }
 
                 if ($antrian->status != 'Checkin') {
-                    return $this->sendError("Status Belum Checkin " . $request->kodebooking, 400);
+                    return $this->sendError($request, "Status Belum Checkin " . $request->kodebooking, 400);
                 }
 
                 // Pasien Dilayani
@@ -884,7 +884,7 @@ class AntrolBPJSController extends Controller
                     : 0;
 
                 if (!$noAntrian) {
-                    return $this->sendError("Data pasien tidak diteukan " . $request->kodebooking, 201);
+                    return $this->sendError($request, "Data pasien tidak diteukan " . $request->kodebooking, 201);
                 }
 
                 $waktuMasukPoli = isset($queryPasienRJ->waktu_masuk_poli) ?
@@ -945,10 +945,10 @@ class AntrolBPJSController extends Controller
 
                 ];
 
-                return $this->sendResponse($response, 200);
+                return $this->sendResponse($request, $response, 200);
             }
         }
-        return $this->sendError("Unauthorized ", 401);
+        return $this->sendError($request, "Unauthorized ", 401);
     }
 
     public function pasienbaru(Request $request)
@@ -979,13 +979,13 @@ class AntrolBPJSController extends Controller
 
                 // if valoidator fails
                 if ($validator->fails()) {
-                    return $this->sendError($validator->errors()->first(),  400);
+                    return $this->sendError($request, $validator->errors()->first(),  400);
                 }
 
-                return $this->sendError("Anda belum memiliki No RM di RSI Madinah (Pasien Baru). Silahkan daftar secara offline.", 400);
+                return $this->sendError($request, "Anda belum memiliki No RM di RSI Madinah (Pasien Baru). Silahkan daftar secara offline.", 400);
             }
         }
-        return $this->sendError("Unauthorized ", 401);
+        return $this->sendError($request, "Unauthorized ", 401);
     }
 
     /////////////////////////////
