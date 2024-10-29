@@ -193,7 +193,7 @@ trait TraitJWTRsiMadinah
             "iss" => "Madinah REST API", //Pembuat Token
             "aud" => "Client Madinah REST API", //Penrima Token
             "iat" => time(), //time create Token
-            "exp" => 43200, //5 menit {second time} detik
+            "exp" => 43200, //12 jam {second time} detik
             "data" => array(
                 "username" => $username
             )

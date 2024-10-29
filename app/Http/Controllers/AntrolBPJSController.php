@@ -528,7 +528,7 @@ class AntrolBPJSController extends Controller
                 DB::table('rstxn_rjhdrs')->insert([
                     'rj_no' => $rjNo,
                     'rj_date' => DB::raw("to_date('" . $waktucheckin . "','yyyy-mm-dd hh24:mi:ss')"),
-                    'reg_no' => $antrian->norm,
+                    'reg_no' => DB::raw("upper(" . $antrian->norm . ")"),
                     'nobooking' => $request->kodebooking,
                     'no_antrian' => $noAntrian,
 
