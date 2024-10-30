@@ -219,7 +219,7 @@ class AntrolBPJSController extends Controller
                         ->select('reg_no')
                         ->where('nik', $request->nik)
                         ->first();
-                    if (isset($cariNikPasien->reg_no) || !empty($cariNikPasien->reg_no)) {
+                    if (isset($cariNikPasien->reg_no) && !empty($cariNikPasien->reg_no)) {
                         $request->merge(['norm' => $cariNikPasien->reg_no]);
                     }
                 }
