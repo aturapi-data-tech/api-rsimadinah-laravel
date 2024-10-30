@@ -13,6 +13,7 @@ use App\Http\Traits\BPJS\AntrianTrait;
 
 
 use App\Models\User;
+use Exception;
 
 class AntrolBPJSController extends Controller
 {
@@ -497,96 +498,102 @@ class AntrolBPJSController extends Controller
                     return $this->sendError($request, "Quota tidak tersedia",  201);
                 }
 
-                // update mobile JKN
-                DB::table('referensi_mobilejkn_bpjs')
-                    ->where('nobooking', $request->kodebooking)
-                    ->update([
-                        'status' => 'Checkin',
-                        'validasi' => Carbon::now()->format('Y-m-d H:i:s')
+
+                try {
+
+                    // update mobile JKN
+                    DB::table('referensi_mobilejkn_bpjs')
+                        ->where('nobooking', $request->kodebooking)
+                        ->update([
+                            'status' => 'Checkin',
+                            'validasi' => Carbon::now()->format('Y-m-d H:i:s')
+                        ]);
+
+                    // insert to rjhdr
+
+                    // rjNo
+                    $sql = "select nvl(max(rj_no)+1,1) rjno_max from rstxn_rjhdrs";
+                    $rjNo = DB::scalar($sql);
+
+                    // noAntrian
+                    $sql = "select count(*) no_antrian
+             from rstxn_rjhdrs
+             where dr_id=:drId
+             and to_char(rj_date,'ddmmyyyy')=:tgl
+             and klaim_id!='KR'";
+
+                    $noUrutAntrian = DB::scalar($sql, [
+                        "drId" => $cekQuota->dr_id,
+                        "tgl" => Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin)->format('dmY')
+                    ]);
+                    $noAntrian = $noUrutAntrian + 1;
+
+                    // insert rjhdr
+                    DB::table('rstxn_rjhdrs')->insert([
+                        'rj_no' => $rjNo,
+                        'rj_date' => DB::raw("to_date('" . $waktucheckin . "','yyyy-mm-dd hh24:mi:ss')"),
+                        'reg_no' => DB::raw("upper(" . $antrian->norm . ")"),
+                        'nobooking' => $request->kodebooking,
+                        'no_antrian' => $noAntrian,
+
+                        'klaim_id' => 'JM',
+                        'poli_id' => $cekQuota->poli_id,
+                        'dr_id' => $cekQuota->dr_id,
+                        'shift' => $cekQuota->shift,
+
+                        'txn_status' => 'A',
+                        'rj_status' => 'A',
+                        'erm_status' => 'A',
+
+                        'pass_status' => 'O', //Baru lama
+
+                        'cek_lab' => '0',
+                        'sl_codefrom' => '02',
+                        'kunjungan_internal_status' => '0',
+                        // 'push_antrian_bpjs_status' => null, //status push antrian 200 /201/ 400
+                        // 'push_antrian_bpjs_json' => null,  // response json
+                        // 'datadaftarpolirj_json' => json_encode($this->dataDaftarPoliRJ, true),
+                        // 'datadaftarpolirj_xml' => ArrayToXml::convert($this->dataDaftarPoliRJ),
+
+                        'waktu_masuk_pelayanan' => DB::raw("to_date('" . $waktucheckin . "','yyyy-mm-dd hh24:mi:ss')"), //waktu masuk = rjdate
+
+                        // 'vno_sep' => null,
+
                     ]);
 
-                // insert to rjhdr
-
-                // rjNo
-                $sql = "select nvl(max(rj_no)+1,1) rjno_max from rstxn_rjhdrs";
-                $rjNo = DB::scalar($sql);
-
-                // noAntrian
-                $sql = "select count(*) no_antrian
-                 from rstxn_rjhdrs
-                 where dr_id=:drId
-                 and to_char(rj_date,'ddmmyyyy')=:tgl
-                 and klaim_id!='KR'";
-
-                $noUrutAntrian = DB::scalar($sql, [
-                    "drId" => $cekQuota->dr_id,
-                    "tgl" => Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin)->format('dmY')
-                ]);
-                $noAntrian = $noUrutAntrian + 1;
-
-                // insert rjhdr
-                DB::table('rstxn_rjhdrs')->insert([
-                    'rj_no' => $rjNo,
-                    'rj_date' => DB::raw("to_date('" . $waktucheckin . "','yyyy-mm-dd hh24:mi:ss')"),
-                    'reg_no' => DB::raw("upper(" . $antrian->norm . ")"),
-                    'nobooking' => $request->kodebooking,
-                    'no_antrian' => $noAntrian,
-
-                    'klaim_id' => 'JM',
-                    'poli_id' => $cekQuota->poli_id,
-                    'dr_id' => $cekQuota->dr_id,
-                    'shift' => $cekQuota->shift,
-
-                    'txn_status' => 'A',
-                    'rj_status' => 'A',
-                    'erm_status' => 'A',
-
-                    'pass_status' => 'O', //Baru lama
-
-                    'cek_lab' => '0',
-                    'sl_codefrom' => '02',
-                    'kunjungan_internal_status' => '0',
-                    // 'push_antrian_bpjs_status' => null, //status push antrian 200 /201/ 400
-                    // 'push_antrian_bpjs_json' => null,  // response json
-                    // 'datadaftarpolirj_json' => json_encode($this->dataDaftarPoliRJ, true),
-                    // 'datadaftarpolirj_xml' => ArrayToXml::convert($this->dataDaftarPoliRJ),
-
-                    'waktu_masuk_pelayanan' => DB::raw("to_date('" . $waktucheckin . "','yyyy-mm-dd hh24:mi:ss')"), //waktu masuk = rjdate
-
-                    // 'vno_sep' => null,
-
-                ]);
-
-                $myAntreanadd = [
-                    "kodebooking" => $request->kodebooking,
-                    "jenispasien" => 'JKN', //Layanan UMUM BPJS
-                    "nomorkartu" => $antrian->nomorkartu,
-                    "nik" =>  $antrian->nik,
-                    "nohp" =>  $antrian->nohp,
-                    "kodepoli" => $antrian->kodepoli, //if null poliidRS
-                    "namapoli" => $cekQuota->poli_desc,
-                    "pasienbaru" => 0,
-                    "norm" => $antrian->kodepoli,
-                    "tanggalperiksa" => $antrian->tanggalperiksa,
-                    "kodedokter" => $antrian->kodedokter, //if Null dridRS
-                    "namadokter" => $cekQuota->namadokter,
-                    "jampraktek" => $jammulai,
-                    "jeniskunjungan" => $antrian->jeniskunjungan, //FKTP/FKTL/Kontrol/Internal
-                    "nomorreferensi" => $antrian->nomorreferensi,
-                    "nomorantrean" => $noAntrian,
-                    "angkaantrean" => $noAntrian,
-                    "estimasidilayani" => $antrian->estimasidilayani,
-                    "sisakuotajkn" => $noAntrian->kuota - $noAntrian,
-                    "kuotajkn" => $noAntrian->kuota,
-                    "sisakuotanonjkn" => $noAntrian->kuota - $noAntrian,
-                    "kuotanonjkn" => $noAntrian->kuota,
-                    "keterangan" => "Peserta harap 1 jam lebih awal guna pencatatan administrasi.",
-                ];
+                    $myAntreanadd = [
+                        "kodebooking" => $request->kodebooking,
+                        "jenispasien" => 'JKN', //Layanan UMUM BPJS
+                        "nomorkartu" => $antrian->nomorkartu,
+                        "nik" =>  $antrian->nik,
+                        "nohp" =>  $antrian->nohp,
+                        "kodepoli" => $antrian->kodepoli, //if null poliidRS
+                        "namapoli" => $cekQuota->poli_desc,
+                        "pasienbaru" => 0,
+                        "norm" => $antrian->kodepoli,
+                        "tanggalperiksa" => $antrian->tanggalperiksa,
+                        "kodedokter" => $antrian->kodedokter, //if Null dridRS
+                        "namadokter" => $cekQuota->namadokter,
+                        "jampraktek" => $jammulai,
+                        "jeniskunjungan" => $antrian->jeniskunjungan, //FKTP/FKTL/Kontrol/Internal
+                        "nomorreferensi" => $antrian->nomorreferensi,
+                        "nomorantrean" => $noAntrian,
+                        "angkaantrean" => $noAntrian,
+                        "estimasidilayani" => $antrian->estimasidilayani,
+                        "sisakuotajkn" => $noAntrian->kuota - $noAntrian,
+                        "kuotajkn" => $noAntrian->kuota,
+                        "sisakuotanonjkn" => $noAntrian->kuota - $noAntrian,
+                        "kuotanonjkn" => $noAntrian->kuota,
+                        "keterangan" => "Peserta harap 1 jam lebih awal guna pencatatan administrasi.",
+                    ];
 
 
-                $this->pushDataAntrian($myAntreanadd, $rjNo, $request->kodebooking, $request->waktu);
+                    $this->pushDataAntrian($myAntreanadd, $rjNo, $request->kodebooking, $request->waktu);
 
-                return $this->sendResponse($request, "OK", 200);
+                    return $this->sendResponse($request, "OK", 200);
+                } catch (Exception $e) {
+                    return $this->sendError($request, $e->getMessage(), 201);
+                }
             }
         }
         return $this->sendError($request, "Unauthorized ", 401);
