@@ -213,6 +213,17 @@ class AntrolBPJSController extends Controller
                     $rules['nomorreferensi'] = "required";
                 }
 
+                // ketika NoRM kosong cek database berdasarkan nik
+                if (!isset($request->norm) || empty($request->norm)) {
+                    $cariNikPasien = DB::table('rsmst_pasien')
+                        ->select('reg_no')
+                        ->where('nik', $request->nik)
+                        ->first();
+                    if (isset($cariNikPasien->reg_no) || !empty($cariNikPasien->reg_no)) {
+                        $request->merge(['norm' => $cariNikPasien->reg_no]);
+                    }
+                }
+
                 $validator = Validator::make($request->all(), $rules);
 
 
