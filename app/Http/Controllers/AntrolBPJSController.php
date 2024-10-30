@@ -335,54 +335,59 @@ class AntrolBPJSController extends Controller
                 $jadwalEstimasiTimestamp = Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa)->addMinutes(10 * ($noAntrian + 1))->timestamp * 1000;
 
                 $noBooking = Carbon::now()->format('YmdHis') . 'JKN';
-                // tambah antrian database
-                DB::table('referensi_mobilejkn_bpjs')
-                    ->insert([
-                        "nobooking" => $noBooking,
-                        "no_rawat" => $noBooking,
-                        "nomorkartu" => $request->nomorkartu,
-                        "nik" => $request->nik,
-                        "nohp" => $request->nohp,
-                        "kodepoli" => $request->kodepoli,
-                        "pasienbaru" => 0,
-                        "norm" => $request->norm,
-                        "tanggalperiksa" => $request->tanggalperiksa,
-                        "kodedokter" => $request->kodedokter,
-                        "jampraktek" => $request->jampraktek,
-                        "jeniskunjungan" => $request->jeniskunjungan,
-                        "nomorreferensi" => $request->nomorreferensi,
+
+                try {
+                    // tambah antrian database
+                    DB::table('referensi_mobilejkn_bpjs')
+                        ->insert([
+                            "nobooking" => $noBooking,
+                            "no_rawat" => $noBooking,
+                            "nomorkartu" => $request->nomorkartu,
+                            "nik" => $request->nik,
+                            "nohp" => $request->nohp,
+                            "kodepoli" => $request->kodepoli,
+                            "pasienbaru" => 0,
+                            "norm" => $request->norm,
+                            "tanggalperiksa" => $request->tanggalperiksa,
+                            "kodedokter" => $request->kodedokter,
+                            "jampraktek" => $request->jampraktek,
+                            "jeniskunjungan" => $request->jeniskunjungan,
+                            "nomorreferensi" => $request->nomorreferensi,
+                            "nomorantrean" => $request->kodepoli . '-' . $noAntrian, //kerjakan ini
+                            "angkaantrean" => $noAntrian,
+                            "estimasidilayani" => $jadwalEstimasiTimestamp,
+                            "sisakuotajkn" => $cekQuota->kuota - $cekDaftar->count(),
+                            "kuotajkn" => $cekQuota->kuota,
+                            "sisakuotanonjkn" => $cekQuota->kuota - $cekDaftar->count(),
+                            "kuotanonjkn" => $cekQuota->kuota,
+                            "status" => "Belum",
+                            "validasi" => "",
+                            "statuskirim" => "Belum",
+                            "keterangan_batal" => "",
+                            "tanggalbooking" => Carbon::now()->format('Y-m-d H:i:s'),
+                            "daftardariapp" => "JKNMobileAPP",
+                        ]);
+
+
+                    $response = [
                         "nomorantrean" => $request->kodepoli . '-' . $noAntrian, //kerjakan ini
                         "angkaantrean" => $noAntrian,
+                        "kodebooking" => $noBooking,
+                        "norm" =>  $request->norm,
+                        "namapoli" => $cekQuota->poli_desc,
+                        "namadokter" => $cekQuota->dr_name,
                         "estimasidilayani" => $jadwalEstimasiTimestamp,
                         "sisakuotajkn" => $cekQuota->kuota - $cekDaftar->count(),
                         "kuotajkn" => $cekQuota->kuota,
                         "sisakuotanonjkn" => $cekQuota->kuota - $cekDaftar->count(),
                         "kuotanonjkn" => $cekQuota->kuota,
-                        "status" => "Belum",
-                        "validasi" => "",
-                        "statuskirim" => "Belum",
-                        "keterangan_batal" => "",
-                        "tanggalbooking" => Carbon::now()->format('Y-m-d H:i:s'),
-                        "daftardariapp" => "JKNMobileAPP",
-                    ]);
+                        "keterangan" => 'Peserta harap 60 menit lebih awal guna pencatatan administrasi',
+                    ];
 
-
-                $response = [
-                    "nomorantrean" => $request->kodepoli . '-' . $noAntrian, //kerjakan ini
-                    "angkaantrean" => $noAntrian,
-                    "kodebooking" => $noBooking,
-                    "norm" =>  $request->norm,
-                    "namapoli" => $cekQuota->poli_desc,
-                    "namadokter" => $cekQuota->dr_name,
-                    "estimasidilayani" => $jadwalEstimasiTimestamp,
-                    "sisakuotajkn" => $cekQuota->kuota - $cekDaftar->count(),
-                    "kuotajkn" => $cekQuota->kuota,
-                    "sisakuotanonjkn" => $cekQuota->kuota - $cekDaftar->count(),
-                    "kuotanonjkn" => $cekQuota->kuota,
-                    "keterangan" => 'Peserta harap 60 menit lebih awal guna pencatatan administrasi',
-                ];
-
-                return $this->sendResponse($request, $response, 200);
+                    return $this->sendResponse($request, $response, 200);
+                } catch (Exception $e) {
+                    return $this->sendError($request, $e->getMessage(), 201);
+                }
             }
         }
         return $this->sendError($request, "Unauthorized ", 401);
