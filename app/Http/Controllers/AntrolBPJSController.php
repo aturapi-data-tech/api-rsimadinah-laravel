@@ -217,7 +217,7 @@ class AntrolBPJSController extends Controller
                 if (!isset($request->norm) || empty($request->norm)) {
                     $cariNikPasien = DB::table('rsmst_pasien')
                         ->select('reg_no')
-                        ->where('nik', $request->nik)
+                        ->where('nik_bpjs', $request->nik)
                         ->first();
                     if (isset($cariNikPasien->reg_no) && !empty($cariNikPasien->reg_no)) {
                         $request->merge(['norm' => $cariNikPasien->reg_no]);
