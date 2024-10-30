@@ -421,7 +421,7 @@ class AntrolBPJSController extends Controller
 
                 // if valoidator fails
                 if ($validator->fails()) {
-                    return $this->sendError($request, $validator->errors()->first(), 400);
+                    return $this->sendError($request, $validator->errors()->first(), 201);
                 }
 
                 $antrian = DB::table('referensi_mobilejkn_bpjs')
@@ -429,19 +429,19 @@ class AntrolBPJSController extends Controller
                     ->first();
 
                 if (!$antrian) {
-                    return $this->sendError($request, "No Booking (" . $request->kodebooking . ") invalid.",  409);
+                    return $this->sendError($request, "No Booking (" . $request->kodebooking . ") invalid.",  201);
                 }
 
                 if (!Carbon::parse($antrian->tanggalperiksa)->isToday()) {
-                    return $this->sendError($request, "Tanggal periksa bukan hari ini.", 400);
+                    return $this->sendError($request, "Tanggal periksa bukan hari ini.", 201);
                 }
 
                 if ($antrian->status == 'Batal') {
-                    return $this->sendError($request, "Antrian telah dibatalkan sebelumnya.", 400);
+                    return $this->sendError($request, "Antrian telah dibatalkan sebelumnya.", 201);
                 }
 
                 if ($antrian->status == 'Checkin') {
-                    return $this->sendError($request, "Anda Sudah Checkin pada " . $antrian->validasi, 400);
+                    return $this->sendError($request, "Anda Sudah Checkin pada " . $antrian->validasi, 201);
                 }
 
                 // checkin +- 1jam
@@ -455,11 +455,11 @@ class AntrolBPJSController extends Controller
                 // return ($checkIn1Jam . '  ' . $tanggalperiksa . '  ' . $waktucheckin);
 
                 if ($checkIn1Jam < -1) {
-                    return $this->sendError($request, "Lakukan Chekin 1 Jam Sebelum Pelayanan, Pelayanan dimulai " . $tanggalperiksa, 400);
+                    return $this->sendError($request, "Lakukan Chekin 1 Jam Sebelum Pelayanan, Pelayanan dimulai " . $tanggalperiksa, 201);
                 }
 
                 if ($checkIn1Jam > 1) {
-                    return $this->sendError($request, "Chekin Anda sudah expired " . $checkIn1Jam . " Jam yang lalu, Silahkan konfirmasi ke loket pendaftaran ", 400);
+                    return $this->sendError($request, "Chekin Anda sudah expired " . $checkIn1Jam . " Jam yang lalu, Silahkan konfirmasi ke loket pendaftaran ", 201);
                 }
 
                 // cek Quota sebelum checkin
