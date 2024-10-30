@@ -471,11 +471,11 @@ class AntrolBPJSController extends Controller
 
                 // return ($checkIn1Jam . '  ' . $tanggalperiksa . '  ' . $waktucheckin);
 
-                if ($checkIn1Jam < -1) {
+                if ($checkIn1Jam < -2) {
                     return $this->sendError($request, "Lakukan Chekin 1 Jam Sebelum Pelayanan, Pelayanan dimulai " . $tanggalperiksa, 201);
                 }
 
-                if ($checkIn1Jam > 1) {
+                if ($checkIn1Jam > 2) {
                     return $this->sendError($request, "Chekin Anda sudah expired " . $checkIn1Jam . " Jam yang lalu, Silahkan konfirmasi ke loket pendaftaran ", 201);
                 }
 
