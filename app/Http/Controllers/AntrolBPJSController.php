@@ -517,15 +517,7 @@ class AntrolBPJSController extends Controller
 
                 try {
 
-                    // update mobile JKN
-                    DB::table('referensi_mobilejkn_bpjs')
-                        ->where('nobooking', $request->kodebooking)
-                        ->update([
-                            'status' => 'Checkin',
-                            'validasi' => Carbon::now()->format('Y-m-d H:i:s')
-                        ]);
 
-                    // insert to rjhdr
 
                     // rjNo
                     $sql = "select nvl(max(rj_no)+1,1) rjno_max from rstxn_rjhdrs";
@@ -533,10 +525,10 @@ class AntrolBPJSController extends Controller
 
                     // noAntrian
                     $sql = "select count(*) no_antrian
-             from rstxn_rjhdrs
-             where dr_id=:drId
-             and to_char(rj_date,'ddmmyyyy')=:tgl
-             and klaim_id!='KR'";
+                            from rstxn_rjhdrs
+                            where dr_id=:drId
+                            and to_char(rj_date,'ddmmyyyy')=:tgl
+                            and klaim_id!='KR'";
 
                     $noUrutAntrian = DB::scalar($sql, [
                         "drId" => $cekQuota->dr_id,
@@ -577,6 +569,16 @@ class AntrolBPJSController extends Controller
 
                     ]);
 
+                    // update mobile JKN
+                    DB::table('referensi_mobilejkn_bpjs')
+                        ->where('nobooking', $request->kodebooking)
+                        ->update([
+                            'status' => 'Checkin',
+                            'validasi' => Carbon::now()->format('Y-m-d H:i:s')
+                        ]);
+
+                    // insert to rjhdr
+
                     $myAntreanadd = [
                         "kodebooking" => $request->kodebooking,
                         "jenispasien" => 'JKN', //Layanan UMUM BPJS
@@ -608,7 +610,7 @@ class AntrolBPJSController extends Controller
 
                     return $this->sendResponse($request, "OK", 200);
                 } catch (Exception $e) {
-                    return $this->sendError($request, $e->getMessage(), 201);
+                    return $this->sendError($request, $e->getMessage(), 401);
                 }
             }
         }
