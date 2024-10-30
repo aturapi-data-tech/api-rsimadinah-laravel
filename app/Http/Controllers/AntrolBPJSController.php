@@ -348,6 +348,8 @@ class AntrolBPJSController extends Controller
                 $noBooking = Carbon::now()->format('YmdHis') . 'JKN';
 
                 try {
+                    $norm = strtoupper($request->norm);
+
                     // tambah antrian database
                     DB::table('referensi_mobilejkn_bpjs')
                         ->insert([
@@ -358,7 +360,7 @@ class AntrolBPJSController extends Controller
                             "nohp" => $request->nohp,
                             "kodepoli" => $request->kodepoli,
                             "pasienbaru" => 0,
-                            "norm" => $request->norm,
+                            "norm" => $norm,
                             "tanggalperiksa" => $request->tanggalperiksa,
                             "kodedokter" => $request->kodedokter,
                             "jampraktek" => $request->jampraktek,
@@ -611,7 +613,7 @@ class AntrolBPJSController extends Controller
 
                     return $this->sendResponse($request, "OK", 200);
                 } catch (Exception $e) {
-                    return $this->sendError($request, $e->getMessage(), 401);
+                    return $this->sendError($request, $e->getMessage(), 201);
                 }
             }
         }
