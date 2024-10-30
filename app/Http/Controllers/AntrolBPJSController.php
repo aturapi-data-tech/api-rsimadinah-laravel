@@ -67,7 +67,7 @@ class AntrolBPJSController extends Controller
                 ]);
                 // if valoidator fails
                 if ($validator->fails()) {
-                    return $this->sendError($request, $validator->errors()->first(),  400);
+                    return $this->sendError($request, $validator->errors()->first(),  201);
                 }
 
                 $request['tanggalawal'] = Carbon::parse($request->tanggalawal)->startOfDay();
@@ -132,7 +132,7 @@ class AntrolBPJSController extends Controller
                 ]);
                 // if valoidator fails
                 if ($validator->fails()) {
-                    return $this->sendError($request, $validator->errors()->first(),  400);
+                    return $this->sendError($request, $validator->errors()->first(),  201);
                 }
 
 
@@ -218,16 +218,16 @@ class AntrolBPJSController extends Controller
 
                 // if valoidator fails
                 if ($validator->fails()) {
-                    return $this->sendError($request, $validator->errors()->first(), 400);
+                    return $this->sendError($request, $validator->errors()->first(), 201);
                 }
 
                 // check tanggal backdate
                 if (Carbon::parse($request->tanggalperiksa)->endOfDay()->isPast()) {
-                    return $this->sendError($request, "Tanggal periksa sudah terlewat", 400);
+                    return $this->sendError($request, "Tanggal periksa sudah terlewat", 201);
                 }
                 // check tanggal hanya 7 hari
                 if (Carbon::parse($request->tanggalperiksa) >  Carbon::now()->addDay(6)) {
-                    return $this->sendError($request, "Antrian hanya dapat dibuat untuk 7 hari ke kedepan", 400);
+                    return $this->sendError($request, "Antrian hanya dapat dibuat untuk 7 hari ke kedepan", 201);
                 }
 
                 // cek duplikasi nik antrian
@@ -237,7 +237,7 @@ class AntrolBPJSController extends Controller
                     ->first();
 
                 if ($antrian_nik) {
-                    return $this->sendError($request, "Terdapat Antrian (" . $antrian_nik->nobooking . ") dengan nomor NIK yang sama pada tanggal tersebut yang belum selesai. Silahkan batalkan terlebih dahulu jika ingin mendaftarkan lagi.",  409);
+                    return $this->sendError($request, "Terdapat Antrian (" . $antrian_nik->nobooking . ") dengan nomor NIK yang sama pada tanggal tersebut yang belum selesai. Silahkan batalkan terlebih dahulu jika ingin mendaftarkan lagi.",  201);
                 }
 
                 // // cek pasien baru
@@ -628,7 +628,7 @@ class AntrolBPJSController extends Controller
 
                 // if valoidator fails
                 if ($validator->fails()) {
-                    return $this->sendError($request, $validator->errors()->first(),  400);
+                    return $this->sendError($request, $validator->errors()->first(),  201);
                 }
 
                 $antrian = DB::table('referensi_mobilejkn_bpjs')
@@ -636,19 +636,19 @@ class AntrolBPJSController extends Controller
                     ->first();
 
                 if (!$antrian) {
-                    return $this->sendError($request, "No Booking (" . $request->kodebooking . ") invalid.",  409);
+                    return $this->sendError($request, "No Booking (" . $request->kodebooking . ") invalid.",  201);
                 }
 
                 if (!Carbon::parse($antrian->tanggalperiksa)->isToday()) {
-                    return $this->sendError($request, "Tanggal periksa bukan hari ini.", 400);
+                    return $this->sendError($request, "Tanggal periksa bukan hari ini.", 201);
                 }
 
                 if ($antrian->status == 'Batal') {
-                    return $this->sendError($request, "Antrian telah dibatalkan sebelumnya.", 400);
+                    return $this->sendError($request, "Antrian telah dibatalkan sebelumnya.", 201);
                 }
 
                 if ($antrian->status == 'Checkin') {
-                    return $this->sendError($request, "Pembatalan tidakbisa dilakukan, Anda Sudah Checkin pada " . $antrian->validasi, 400);
+                    return $this->sendError($request, "Pembatalan tidakbisa dilakukan, Anda Sudah Checkin pada " . $antrian->validasi, 201);
                 }
 
                 // update mobile JKN
@@ -697,11 +697,11 @@ class AntrolBPJSController extends Controller
 
                 // if valoidator fails
                 if ($validator->fails()) {
-                    return $this->sendError($request, $validator->errors()->first(),  400);
+                    return $this->sendError($request, $validator->errors()->first(),  201);
                 }
 
                 if (Carbon::parse($request->tanggalperiksa)->endOfDay()->isPast()) {
-                    return $this->sendError($request, "Tanggal periksa sudah terlewat", 401);
+                    return $this->sendError($request, "Tanggal periksa sudah terlewat", 201);
                 }
 
                 // cek dokter
@@ -840,7 +840,7 @@ class AntrolBPJSController extends Controller
 
                 // if valoidator fails
                 if ($validator->fails()) {
-                    return $this->sendError($request, $validator->errors()->first(),  400);
+                    return $this->sendError($request, $validator->errors()->first(),  201);
                 }
 
                 $antrian = DB::table('referensi_mobilejkn_bpjs')
@@ -848,15 +848,15 @@ class AntrolBPJSController extends Controller
                     ->first();
 
                 if (!$antrian) {
-                    return $this->sendError($request, "No Booking (" . $request->kodebooking . ") invalid.",  409);
+                    return $this->sendError($request, "No Booking (" . $request->kodebooking . ") invalid.",  201);
                 }
 
                 if ($antrian->status == 'Batal') {
-                    return $this->sendError($request, "Antrian telah dibatalkan sebelumnya.", 400);
+                    return $this->sendError($request, "Antrian telah dibatalkan sebelumnya.", 201);
                 }
 
                 if ($antrian->status != 'Checkin') {
-                    return $this->sendError($request, "Status Belum Checkin " . $request->kodebooking, 400);
+                    return $this->sendError($request, "Status Belum Checkin " . $request->kodebooking, 201);
                 }
 
                 // Pasien Dilayani
