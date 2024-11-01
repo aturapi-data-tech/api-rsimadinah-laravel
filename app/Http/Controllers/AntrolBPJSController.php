@@ -219,6 +219,7 @@ class AntrolBPJSController extends Controller
                         ->select('reg_no')
                         ->where('nik_bpjs', $request->nik)
                         ->first();
+
                     if (isset($cariNikPasien->reg_no) && !empty($cariNikPasien->reg_no)) {
                         $request->merge(['norm' => $cariNikPasien->reg_no]);
                     }
@@ -447,7 +448,7 @@ class AntrolBPJSController extends Controller
                     ->where('nobooking', $request->kodebooking)
                     ->first();
 
-                if (!$antrian) {
+                if (!$antrian || empty($antrian)) {
                     return $this->sendError($request, "No Booking (" . $request->kodebooking . ") invalid.",  201);
                 }
 
@@ -469,16 +470,16 @@ class AntrolBPJSController extends Controller
                 $tanggalperiksa = $antrian->tanggalperiksa . ' ' . $jammulai . ':00';
                 $waktucheckin = Carbon::createFromTimestamp($request->waktu / 1000)->toDateTimeString();;
 
-                $checkIn1Jam = Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin)->diffInHours(Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa), false);
+                $checkIn2Jam = Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin)->diffInHours(Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa), false);
 
-                // return ($checkIn1Jam . '  ' . $tanggalperiksa . '  ' . $waktucheckin);
+                // return ($checkIn2Jam . '  ' . $tanggalperiksa . '  ' . $waktucheckin);
 
-                if ($checkIn1Jam < -2) {
-                    return $this->sendError($request, "Lakukan Chekin 1 Jam Sebelum Pelayanan, Pelayanan dimulai " . $tanggalperiksa, 201);
+                if ($checkIn2Jam < -2) {
+                    return $this->sendError($request, "Lakukan Chekin 2 Jam Sebelum Pelayanan, Pelayanan dimulai " . $tanggalperiksa, 201);
                 }
 
-                if ($checkIn1Jam > 2) {
-                    return $this->sendError($request, "Chekin Anda sudah expired " . $checkIn1Jam . " Jam yang lalu, Silahkan konfirmasi ke loket pendaftaran ", 201);
+                if ($checkIn2Jam > 2) {
+                    return $this->sendError($request, "Chekin Anda sudah expired " . $checkIn2Jam . " Jam yang lalu, Silahkan konfirmasi ke loket pendaftaran ", 201);
                 }
 
                 // cek Quota sebelum checkin
@@ -493,13 +494,11 @@ class AntrolBPJSController extends Controller
                     // ->where('selesai_praktek', $jamselesai . ':00')
                     ->first();
 
-                $cekDaftar = DB::table('rsview_rjkasir')
-                    ->select('rj_no')
-                    ->where('kd_poli_bpjs', $antrian->kodepoli ? $antrian->kodepoli : '')
-                    ->where('kd_dr_bpjs', $antrian->kodedokter ? $antrian->kodedokter : '')
-                    ->where('rj_status', '!=', 'F')
-                    ->where(DB::raw("to_char(rj_date,'dd/mm/yyyy')"), '=', $antrian->tanggalperiksa ? $antrian->tanggalperiksa : '')
-                    ->get();
+                if (!$cekQuota || empty($cekQuota)) {
+                    return $this->sendError($request, "Ada perubahan Jadwal Dokter hari " . $hari . ".",  201);
+                }
+
+
 
                 // cek Quota tersedia
                 $kuota = isset($cekQuota->kuota)
@@ -508,19 +507,26 @@ class AntrolBPJSController extends Controller
                         : 0)
                     : 0;
 
-                if (!$kuota) {
+                if (!$kuota || $kuota == 0) {
                     return $this->sendError($request, "Pendaftaran ke Poli ini tidak tersedia",  201);
                 }
 
-                if ($cekQuota->kuota - $cekDaftar->count() == 0) {
+
+                $cekDaftar = DB::table('rsview_rjkasir')
+                    ->select('rj_no')
+                    ->where('kd_poli_bpjs', $antrian->kodepoli ? $antrian->kodepoli : '')
+                    ->where('kd_dr_bpjs', $antrian->kodedokter ? $antrian->kodedokter : '')
+                    ->where('rj_status', '!=', 'F')
+                    ->where(DB::raw("to_char(rj_date,'dd/mm/yyyy')"), '=', $antrian->tanggalperiksa ? $antrian->tanggalperiksa : '')
+                    ->get();
+
+
+                if ($cekQuota->kuota - $cekDaftar->count() <= 0) {
                     return $this->sendError($request, "Quota tidak tersedia",  201);
                 }
 
-
+                // Inset RJ
                 try {
-
-
-
                     // rjNo
                     $sql = "select nvl(max(rj_no)+1,1) rjno_max from rstxn_rjhdrs";
                     $rjNo = DB::scalar($sql);
@@ -571,7 +577,12 @@ class AntrolBPJSController extends Controller
                         // 'vno_sep' => null,
 
                     ]);
+                } catch (Exception $e) {
+                    return $this->sendError($request, $e->getMessage(), 201);
+                }
 
+                // update Checkin
+                try {
                     // update mobile JKN
                     DB::table('referensi_mobilejkn_bpjs')
                         ->where('nobooking', $request->kodebooking)
@@ -912,7 +923,7 @@ class AntrolBPJSController extends Controller
                     : 0;
 
                 if (!$noAntrian) {
-                    return $this->sendError($request, "Data pasien tidak diteukan " . $request->kodebooking, 201);
+                    return $this->sendError($request, "Data pasien tidak ditemukan " . $request->kodebooking, 201);
                 }
 
                 $waktuMasukPoli = isset($queryPasienRJ->waktu_masuk_poli) ?
@@ -1064,13 +1075,20 @@ class AntrolBPJSController extends Controller
 
     public function x(Request $request)
     {
-        $noAntrian = 10;
-        $jammulai = '11:00';
-        $tanggalperiksa = $request->tanggalperiksa . ' ' . $jammulai . ':00';
-        $jadwalEstimasiTimestamp = Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa)->addMinutes(10 * ($noAntrian + 1))->timestamp * 1000;
+        $waktucheckin = '2023-11-24 10:30:00';
+        $tanggalperiksa = '2023-11-23 15:15:00';
 
-        $date = Carbon::createFromTimestamp($jadwalEstimasiTimestamp / 1000)->toDateTimeString();
-        return $tanggalperiksa . '  ' . $date . '  ' . $jadwalEstimasiTimestamp;
+        $hoursDifference = Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin)->diffInHours(Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa), false);
+
+        echo "Difference in hours: " . $hoursDifference;
+
+        // $noAntrian = 10;
+        // $jammulai = '11:00';
+        // $tanggalperiksa = $request->tanggalperiksa . ' ' . $jammulai . ':00';
+        // $jadwalEstimasiTimestamp = Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa)->addMinutes(10 * ($noAntrian + 1))->timestamp * 1000;
+
+        // $date = Carbon::createFromTimestamp($jadwalEstimasiTimestamp / 1000)->toDateTimeString();
+        // return $tanggalperiksa . '  ' . $date . '  ' . $jadwalEstimasiTimestamp;
     }
 }
 
