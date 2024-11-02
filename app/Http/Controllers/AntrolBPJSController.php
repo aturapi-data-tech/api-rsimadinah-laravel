@@ -605,7 +605,7 @@ class AntrolBPJSController extends Controller
                         "norm" => $antrian->kodepoli,
                         "tanggalperiksa" => $antrian->tanggalperiksa,
                         "kodedokter" => $antrian->kodedokter, //if Null dridRS
-                        "namadokter" => $cekQuota->namadokter,
+                        "namadokter" => $cekQuota->dr_name,
                         "jampraktek" => $jammulai,
                         "jeniskunjungan" => $antrian->jeniskunjungan, //FKTP/FKTL/Kontrol/Internal
                         "nomorreferensi" => $antrian->nomorreferensi,
