@@ -400,7 +400,7 @@ class AntrolBPJSController extends Controller
 
                     return $this->sendResponse($request, $response, 200);
                 } catch (Exception $e) {
-                    return $this->sendError($request, $e->getMessage(), 201);
+                    return $this->sendError($request, $e->getMessage(), 401);
                 }
             }
         }
@@ -578,7 +578,7 @@ class AntrolBPJSController extends Controller
 
                     ]);
                 } catch (Exception $e) {
-                    return $this->sendError($request, $e->getMessage(), 201);
+                    return $this->sendError($request, $e->getMessage(), 401);
                 }
 
                 // update Checkin
@@ -624,7 +624,7 @@ class AntrolBPJSController extends Controller
 
                     return $this->sendResponse($request, "OK", 200);
                 } catch (Exception $e) {
-                    return $this->sendError($request, $e->getMessage(), 201);
+                    return $this->sendError($request, $e->getMessage(), 401);
                 }
             }
         }
@@ -1075,12 +1075,17 @@ class AntrolBPJSController extends Controller
 
     public function x(Request $request)
     {
+
+        return $this->sendError($request, 'yyyy', 201);
+        return $this->sendError($request, 'xxxx', 401);
+
         $waktucheckin = '2023-11-24 10:30:00';
         $tanggalperiksa = '2023-11-23 15:15:00';
 
         $hoursDifference = Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin)->diffInHours(Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa), false);
 
         echo "Difference in hours: " . $hoursDifference;
+        dd('xxxx');
 
         // $noAntrian = 10;
         // $jammulai = '11:00';
