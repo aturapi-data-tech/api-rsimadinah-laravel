@@ -1019,10 +1019,10 @@ class AntrolBPJSController extends Controller
 
                 // if valoidator fails
                 if ($validator->fails()) {
-                    return $this->sendError($request, $validator->errors()->first(),  400);
+                    return $this->sendError($request, $validator->errors()->first(),  201);
                 }
 
-                return $this->sendError($request, "Anda belum memiliki No RM di RSI Madinah (Pasien Baru). Silahkan daftar secara offline.", 400);
+                return $this->sendError($request, "Anda belum memiliki No RM di RSI Madinah (Pasien Baru). Silahkan daftar secara offline.", 201);
             }
         }
         return $this->sendError($request, "Unauthorized ", 201);
