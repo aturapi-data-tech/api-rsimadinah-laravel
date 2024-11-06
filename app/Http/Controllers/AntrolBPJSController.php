@@ -246,6 +246,7 @@ class AntrolBPJSController extends Controller
                 $antrian_nik = DB::table('referensi_mobilejkn_bpjs')
                     ->where('tanggalperiksa', $request->tanggalperiksa)
                     ->where('nik', $request->nik)
+                    ->where('status', '!=', 'Batal')
                     ->first();
 
                 if ($antrian_nik) {
