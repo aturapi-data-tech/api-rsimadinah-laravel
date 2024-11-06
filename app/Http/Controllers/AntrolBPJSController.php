@@ -401,7 +401,7 @@ class AntrolBPJSController extends Controller
 
                     return $this->sendResponse($request, $response, 200);
                 } catch (Exception $e) {
-                    return $this->sendError($request, $e->getMessage(), 401);
+                    return $this->sendError($request, $e->getMessage(), 201);
                 }
             }
         }
