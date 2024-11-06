@@ -34,7 +34,7 @@ class AntrolBPJSController extends Controller
             $data['token'] =  $token;
             return $this->sendResponse($request, $data, 200);
         } else {
-            return $this->sendError($request, "Unauthorized (Username dan Password Salah)", 401);
+            return $this->sendError($request, "Unauthorized (Username dan Password Salah)", 201);
         }
     }
 
@@ -101,7 +101,7 @@ class AntrolBPJSController extends Controller
                 return $this->sendResponse($request, $response, 200);
             }
         }
-        return $this->sendError($request, "Unauthorized ", 401);
+        return $this->sendError($request, "Unauthorized ", 201);
     }
 
     public function jadwaloperasipasien(Request $request)
@@ -165,7 +165,7 @@ class AntrolBPJSController extends Controller
                 return $this->sendResponse($request, $response, 200);
             }
         }
-        return $this->sendError($request, "Unauthorized ", 401);
+        return $this->sendError($request, "Unauthorized ", 201);
     }
     // Jadwal operasi///////////////////////////////
 
@@ -579,7 +579,7 @@ class AntrolBPJSController extends Controller
 
                     ]);
                 } catch (Exception $e) {
-                    return $this->sendError($request, $e->getMessage(), 401);
+                    return $this->sendError($request, $e->getMessage(), 201);
                 }
 
                 // update Checkin
@@ -625,11 +625,11 @@ class AntrolBPJSController extends Controller
 
                     return $this->sendResponse($request, "OK", 200);
                 } catch (Exception $e) {
-                    return $this->sendError($request, $e->getMessage(), 401);
+                    return $this->sendError($request, $e->getMessage(), 201);
                 }
             }
         }
-        return $this->sendError($request, "Unauthorized ", 401);
+        return $this->sendError($request, "Unauthorized ", 201);
     }
 
     public function batalantrean(Request $request)
@@ -697,7 +697,7 @@ class AntrolBPJSController extends Controller
                 return $this->sendResponse($request, "OK", 200);
             }
         }
-        return $this->sendError($request, "Unauthorized ", 401);
+        return $this->sendError($request, "Unauthorized ", 201);
     }
     public function statusantrean(Request $request)
     {
@@ -842,7 +842,7 @@ class AntrolBPJSController extends Controller
                 return $this->sendResponse($request, $response, 200);
             }
         }
-        return $this->sendError($request, "Unauthorized ", 401);
+        return $this->sendError($request, "Unauthorized ", 201);
     }
 
     public function sisaantrean(Request $request)
@@ -988,7 +988,7 @@ class AntrolBPJSController extends Controller
                 return $this->sendResponse($request, $response, 200);
             }
         }
-        return $this->sendError($request, "Unauthorized ", 401);
+        return $this->sendError($request, "Unauthorized ", 201);
     }
 
     public function pasienbaru(Request $request)
@@ -1025,7 +1025,7 @@ class AntrolBPJSController extends Controller
                 return $this->sendError($request, "Anda belum memiliki No RM di RSI Madinah (Pasien Baru). Silahkan daftar secara offline.", 400);
             }
         }
-        return $this->sendError($request, "Unauthorized ", 401);
+        return $this->sendError($request, "Unauthorized ", 201);
     }
 
     /////////////////////////////
@@ -1078,7 +1078,7 @@ class AntrolBPJSController extends Controller
     {
 
         return $this->sendError($request, 'yyyy', 201);
-        return $this->sendError($request, 'xxxx', 401);
+        // return $this->sendError($request, 'xxxx', 401);
 
         $waktucheckin = '2023-11-24 10:30:00';
         $tanggalperiksa = '2023-11-23 15:15:00';
