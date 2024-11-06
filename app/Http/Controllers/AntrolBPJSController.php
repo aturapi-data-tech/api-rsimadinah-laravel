@@ -405,7 +405,7 @@ class AntrolBPJSController extends Controller
                 }
             }
         }
-        return $this->sendError($request, "Unauthorized ", 401);
+        return $this->sendError($request, "Unauthorized ", 201);
     }
 
     public function checkinantrean(Request $request)
