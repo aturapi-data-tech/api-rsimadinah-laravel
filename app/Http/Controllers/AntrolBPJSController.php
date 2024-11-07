@@ -454,7 +454,7 @@ class AntrolBPJSController extends Controller
                 }
 
                 if (!Carbon::parse($antrian->tanggalperiksa)->isToday()) {
-                    return $this->sendError($request, "Tanggal periksa bukan hari ini.", 201);
+                    return $this->sendError($request, "Tanggal periksa bukan hari ini, tetapi tgl " . $antrian->tanggalperiksa, 201);
                 }
 
                 if ($antrian->status == 'Batal') {
