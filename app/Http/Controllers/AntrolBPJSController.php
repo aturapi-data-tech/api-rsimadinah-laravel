@@ -329,7 +329,7 @@ class AntrolBPJSController extends Controller
                 // proses antrian
                 $noUrutAntrian = DB::scalar($sql, [
                     "drId" => $cekQuota->dr_id,
-                    "tgl" => Carbon::createFromFormat('Y-m-d', $request->tanggalperiksa)->format('dmY')
+                    "tgl" => Carbon::createFromFormat('Y-m-d', $request->tanggalperiksa, 'Asia/Jakarta')->format('dmY')
                 ]);
 
                 $sqlBooking = "select count(*) no_antrian
@@ -345,7 +345,7 @@ class AntrolBPJSController extends Controller
                 $noAntrian = $noUrutAntrian + $noUrutAntrianBooking + 1;
 
                 $tanggalperiksa = $request->tanggalperiksa . ' ' . $jammulai . ':00';
-                $jadwalEstimasiTimestamp = Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa)->addMinutes(10 * ($noAntrian + 1))->timestamp * 1000;
+                $jadwalEstimasiTimestamp = Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa, 'Asia/Jakarta')->addMinutes(10 * ($noAntrian + 1))->timestamp * 1000;
 
                 $noBooking = Carbon::now()->format('YmdHis') . 'JKN';
 
@@ -471,7 +471,7 @@ class AntrolBPJSController extends Controller
                 $tanggalperiksa = $antrian->tanggalperiksa . ' ' . $jammulai . ':00';
                 $waktucheckin = Carbon::createFromTimestamp($request->waktu / 1000)->toDateTimeString();;
 
-                $checkIn2Jam = Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin)->diffInHours(Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa), false);
+                $checkIn2Jam = Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin, 'Asia/Jakarta')->diffInHours(Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa, 'Asia/Jakarta'), false);
 
                 // return ($checkIn2Jam . '  ' . $tanggalperiksa . '  ' . $waktucheckin);
 
@@ -541,7 +541,7 @@ class AntrolBPJSController extends Controller
 
                     $noUrutAntrian = DB::scalar($sql, [
                         "drId" => $cekQuota->dr_id,
-                        "tgl" => Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin)->format('dmY')
+                        "tgl" => Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin, 'Asia/Jakarta')->format('dmY')
                     ]);
                     $noAntrian = $noUrutAntrian + 1;
 
@@ -1083,7 +1083,7 @@ class AntrolBPJSController extends Controller
         $waktucheckin = '2023-11-24 10:30:00';
         $tanggalperiksa = '2023-11-23 15:15:00';
 
-        $hoursDifference = Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin)->diffInHours(Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa), false);
+        $hoursDifference = Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin, 'Asia/Jakarta')->diffInHours(Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa, 'Asia/Jakarta'), false);
 
         echo "Difference in hours: " . $hoursDifference;
         dd('xxxx');
@@ -1091,7 +1091,7 @@ class AntrolBPJSController extends Controller
         // $noAntrian = 10;
         // $jammulai = '11:00';
         // $tanggalperiksa = $request->tanggalperiksa . ' ' . $jammulai . ':00';
-        // $jadwalEstimasiTimestamp = Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa)->addMinutes(10 * ($noAntrian + 1))->timestamp * 1000;
+        // $jadwalEstimasiTimestamp = Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa, 'Asia/Jakarta')->addMinutes(10 * ($noAntrian + 1))->timestamp * 1000;
 
         // $date = Carbon::createFromTimestamp($jadwalEstimasiTimestamp / 1000)->toDateTimeString();
         // return $tanggalperiksa . '  ' . $date . '  ' . $jadwalEstimasiTimestamp;
