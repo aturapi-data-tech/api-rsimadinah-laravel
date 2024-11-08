@@ -238,8 +238,8 @@ class AntrolBPJSController extends Controller
                     return $this->sendError($request, "Tanggal periksa sudah terlewat", 201);
                 }
                 // check tanggal hanya 7 hari
-                if (Carbon::parse($request->tanggalperiksa) >  Carbon::now()->addDay(6)) {
-                    return $this->sendError($request, "Antrian hanya dapat dibuat untuk 7 hari ke kedepan", 201);
+                if (Carbon::parse($request->tanggalperiksa) >  Carbon::now()->addDay(13)) {
+                    return $this->sendError($request, "Antrian hanya dapat dibuat untuk 14 hari ke kedepan", 201);
                 }
 
                 // cek duplikasi nik antrian
@@ -268,16 +268,16 @@ class AntrolBPJSController extends Controller
                 }
 
                 // cek dokter
-                $kd_dr_bpjs = DB::table('rsmst_doctors')->where('kd_dr_bpjs',  $request->kodedokter ? $request->kodedokter : '')->get();
+                $kd_dr_bpjs = DB::table('rsmst_doctors')->where('kd_dr_bpjs',  $request->kodedokter ? $request->kodedokter : '')->first();
 
-                if (!$kd_dr_bpjs->count()) {
+                if (empty($kd_dr_bpjs)) {
                     return $this->sendError($request, "Dokter tidak ditemukan",  201);
                 }
 
                 // cek poli
-                $kd_poli_bpjs = DB::table('rsmst_polis')->where('kd_poli_bpjs',  $request->kodepoli ? $request->kodepoli : '')->get();
+                $kd_poli_bpjs = DB::table('rsmst_polis')->where('kd_poli_bpjs',  $request->kodepoli ? $request->kodepoli : '')->first();
 
-                if (!$kd_poli_bpjs->count()) {
+                if (empty($kd_poli_bpjs)) {
                     return $this->sendError($request, "Poli tidak ditemukan",  201);
                 }
 
@@ -291,8 +291,8 @@ class AntrolBPJSController extends Controller
                     ->where('kd_poli_bpjs', $request->kodepoli)
                     ->where('kd_dr_bpjs', $request->kodedokter)
                     ->where('day_desc', $hari)
-                    // ->where('mulai_praktek', $jammulai . ':00')
-                    // ->where('selesai_praktek', $jamselesai . ':00')
+                    ->where('mulai_praktek', $jammulai . ':00')
+                    ->where('selesai_praktek', $jamselesai . ':00')
                     ->first();
 
                 $cekDaftar = DB::table('rsview_rjkasir')
@@ -312,11 +312,11 @@ class AntrolBPJSController extends Controller
                     : 0;
 
                 if (!$kuota) {
-                    return $this->sendError($request, "Pendaftaran ke Poli ini tidak tersedia",  201);
+                    return $this->sendError($request, "Pendaftaran ke Poli " . $kd_poli_bpjs->poli_desc . " tanggal " . $request->tanggalperiksa . " tidak tersedia",  201);
                 }
 
                 if ($cekQuota->kuota - $cekDaftar->count() == 0) {
-                    return $this->sendError($request, "Quota tidak tersedia",  201);
+                    return $this->sendError($request, "Quota Poli" . $kd_poli_bpjs->poli_desc . " Dokter " . $kd_dr_bpjs->dr_name . " tanggal " . $request->tanggalperiksa . " tidak tersedia",  201);
                 }
 
 
@@ -467,7 +467,7 @@ class AntrolBPJSController extends Controller
 
                 // checkin +- 1jam
                 $jammulai   = substr($antrian->jampraktek, 0, 5);
-                // $jamselesai = substr($antrian->jampraktek, 6, 5);
+                $jamselesai = substr($antrian->jampraktek, 6, 5);
                 $tanggalperiksa = $antrian->tanggalperiksa . ' ' . $jammulai . ':00';
                 $waktucheckin = Carbon::createFromTimestamp($request->waktu / 1000)->toDateTimeString();;
 
@@ -491,12 +491,12 @@ class AntrolBPJSController extends Controller
                     ->where('kd_poli_bpjs', $antrian->kodepoli)
                     ->where('kd_dr_bpjs', $antrian->kodedokter)
                     ->where('day_desc', $hari)
-                    // ->where('mulai_praktek', $jammulai . ':00')
-                    // ->where('selesai_praktek', $jamselesai . ':00')
+                    ->where('mulai_praktek', $jammulai . ':00')
+                    ->where('selesai_praktek', $jamselesai . ':00')
                     ->first();
 
-                if (!$cekQuota || empty($cekQuota)) {
-                    return $this->sendError($request, "Ada perubahan Jadwal Dokter hari " . $hari . ".",  201);
+                if (empty($cekQuota)) {
+                    return $this->sendError($request, "Ada perubahan jadwal pelayanan, jadwal Dokter di Poli tersebut tidak ditemukan.",  201);
                 }
 
 
@@ -509,7 +509,7 @@ class AntrolBPJSController extends Controller
                     : 0;
 
                 if (!$kuota || $kuota == 0) {
-                    return $this->sendError($request, "Pendaftaran ke Poli ini tidak tersedia",  201);
+                    return $this->sendError($request, "Quota pelayanan Poli " . $cekQuota->poli_desc . " Dokter" . $cekQuota->dr_name . "para hari " . $hari . " Tidak Tersedia.",  201);
                 }
 
 
@@ -523,7 +523,7 @@ class AntrolBPJSController extends Controller
 
 
                 if ($cekQuota->kuota - $cekDaftar->count() <= 0) {
-                    return $this->sendError($request, "Quota tidak tersedia",  201);
+                    return $this->sendError($request, "Quota Pelayanan Poli " . $cekQuota->poli_desc . " Dokter" . $cekQuota->dr_name . "para hari " . $hari . " Penuh.",  201);
                 }
 
                 // Inset RJ
