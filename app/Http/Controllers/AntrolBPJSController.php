@@ -623,7 +623,7 @@ class AntrolBPJSController extends Controller
 
                     $this->pushDataAntrian($myAntreanadd, $rjNo, $request->kodebooking, $request->waktu);
 
-                    return $this->sendResponse($request, "OK", 200);
+                    return $this->sendResponse($request, "OK Peserta harap 1 jam lebih awal guna pencatatan administrasi " . $request->kodebooking, 200);
                 } catch (Exception $e) {
                     return $this->sendError($request, $e->getMessage(), 201);
                 }
@@ -1078,7 +1078,6 @@ class AntrolBPJSController extends Controller
     {
 
         return $this->sendError($request, 'yyyy', 201);
-        // return $this->sendError($request, 'xxxx', 401);
 
         $waktucheckin = '2023-11-24 10:30:00';
         $tanggalperiksa = '2023-11-23 15:15:00';
