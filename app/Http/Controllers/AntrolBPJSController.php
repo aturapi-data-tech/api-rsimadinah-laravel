@@ -672,9 +672,9 @@ class AntrolBPJSController extends Controller
                     return $this->sendError($request, "No Booking (" . $request->kodebooking . ") invalid.",  201);
                 }
 
-                if (!Carbon::parse($antrian->tanggalperiksa)->isToday()) {
-                    return $this->sendError($request, "Tanggal periksa bukan hari ini.", 201);
-                }
+                // if (!Carbon::parse($antrian->tanggalperiksa)->isToday()) {
+                //     return $this->sendError($request, "Tanggal periksa bukan hari ini.", 201);
+                // }
 
                 if ($antrian->status == 'Batal') {
                     return $this->sendError($request, "Antrian telah dibatalkan sebelumnya.", 201);
