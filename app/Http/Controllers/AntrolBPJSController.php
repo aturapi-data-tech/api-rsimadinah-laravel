@@ -214,14 +214,18 @@ class AntrolBPJSController extends Controller
                 }
 
                 // ketika NoRM kosong cek database berdasarkan nik
-                if (!isset($request->norm) || empty($request->norm)) {
+                if ($request->filled('norm')) {
+                    // do nothing
+                } else {
                     $cariNikPasien = DB::table('rsmst_pasien')
                         ->select('reg_no')
                         ->where('nik_bpjs', $request->nik)
                         ->first();
 
-                    if (isset($cariNikPasien->reg_no) && !empty($cariNikPasien->reg_no)) {
+                    if (!empty($cariNikPasien->reg_no)) {
                         $request->merge(['norm' => $cariNikPasien->reg_no]);
+                    } else {
+                        return $this->sendError($request, "Nomer Rekam medis tidak ditemukan, silakan confirmasi petugas untuk melakukan update data anda.", 201);
                     }
                 }
 
