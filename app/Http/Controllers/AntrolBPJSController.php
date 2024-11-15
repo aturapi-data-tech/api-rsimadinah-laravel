@@ -213,15 +213,18 @@ class AntrolBPJSController extends Controller
                     $rules['nomorreferensi'] = "required";
                 }
 
+                $cariNikPasien = DB::table('rsmst_pasien')
+                    ->select('reg_no')
+                    ->where('nik_bpjs', $request->nik)
+                    ->first();
+
                 // ketika NoRM kosong cek database berdasarkan nik
                 if ($request->filled('norm')) {
+                    if ($request->norm != $cariNikPasien->reg_no) {
+                        $request->merge(['norm' => $cariNikPasien->reg_no]);
+                    }
                     // do nothing
                 } else {
-                    $cariNikPasien = DB::table('rsmst_pasien')
-                        ->select('reg_no')
-                        ->where('nik_bpjs', $request->nik)
-                        ->first();
-
                     if (!empty($cariNikPasien->reg_no)) {
                         $request->merge(['norm' => $cariNikPasien->reg_no]);
                     } else {
@@ -270,6 +273,14 @@ class AntrolBPJSController extends Controller
                 if ($pasien->nik_bpjs != $request->nik) {
                     return $this->sendError($request, "NIK anda yang terdaftar di BPJS dengan Di RSI Madinah berbeda. Silahkan perbaiki melalui pendaftaran offline",  201);
                 }
+
+
+
+
+
+
+
+
 
                 // cek dokter
                 $kd_dr_bpjs = DB::table('rsmst_doctors')->where('kd_dr_bpjs',  $request->kodedokter ? $request->kodedokter : '')->first();
@@ -550,6 +561,27 @@ class AntrolBPJSController extends Controller
                     $noAntrian = $noUrutAntrian + 1;
 
                     $norm = strtoupper($antrian->norm);
+
+
+                    // $x = $rjNo . '-' .
+                    //     $waktucheckin . '-' .
+                    //     $norm . '-' .
+                    //     $request->kodebooking . '-' .
+                    //     $noAntrian . '-' .
+                    //     'JM' . '-' .
+                    //     $cekQuota->poli_id . '-' .
+                    //     $cekQuota->dr_id . '-' .
+                    //     $cekQuota->shift . '-' .
+                    //     'A' . '-' .
+                    //     'A' . '-' .
+                    //     'A' . '-' .
+                    //     'O' . '-' .
+                    //     '0' . '-' .
+                    //     '02' . '-' .
+                    //     '0' . '-';
+                    // return $this->sendError($request, $x,  201);
+
+
                     // insert rjhdr
                     DB::table('rstxn_rjhdrs')->insert([
                         'rj_no' => $rjNo,
