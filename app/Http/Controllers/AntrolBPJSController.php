@@ -213,20 +213,32 @@ class AntrolBPJSController extends Controller
                     $rules['nomorreferensi'] = "required";
                 }
 
-                $cariNikPasien = DB::table('rsmst_pasien')
-                    ->select('reg_no')
-                    ->where('nik_bpjs', $request->nik)
-                    ->first();
 
-                // ketika NoRM kosong cek database berdasarkan nik
+                // // cek pasien baru
+                // $request['pasienbaru'] = 0;
+
+                $pasien = DB::table('rsmst_pasiens')
+                    ->select('reg_no', 'nokartu_bpjs', 'nik_bpjs')
+                    ->where('nokartu_bpjs',  $request->nomorkartu)->first();
+
+                if (empty($pasien)) {
+                    return $this->sendError($request, "Nomor Kartu BPJS Pasien termasuk Pasien Baru di RSI Madinah. Silahkan daftar melalui pendaftaran offline",  201);
+                }
+
+                // cek no kartu sesuai tidak
+                if ($pasien->nik_bpjs != $request->nik) {
+                    return $this->sendError($request, "NIK anda yang terdaftar di BPJS dengan Di RSI Madinah berbeda. Silahkan perbaiki melalui pendaftaran offline",  201);
+                }
+
+                // ketika NoRM kosong cek database berdasarkan nik jika no rmberbeda maka replace
                 if ($request->filled('norm')) {
-                    if ($request->norm != $cariNikPasien->reg_no) {
-                        $request->merge(['norm' => $cariNikPasien->reg_no]);
+                    if ($request->norm != $pasien->reg_no) {
+                        $request->merge(['norm' => $pasien->reg_no]);
                     }
                     // do nothing
                 } else {
-                    if (!empty($cariNikPasien->reg_no)) {
-                        $request->merge(['norm' => $cariNikPasien->reg_no]);
+                    if (!empty($pasien->reg_no)) {
+                        $request->merge(['norm' => $pasien->reg_no]);
                     } else {
                         return $this->sendError($request, "Nomer Rekam medis tidak ditemukan, silakan confirmasi petugas untuk melakukan update data anda.", 201);
                     }
@@ -260,19 +272,6 @@ class AntrolBPJSController extends Controller
                     return $this->sendError($request, "Terdapat Antrian (" . $antrian_nik->nobooking . ") dengan nomor NIK yang sama pada tanggal tersebut yang belum selesai. Silahkan batalkan terlebih dahulu jika ingin mendaftarkan lagi.",  201);
                 }
 
-                // // cek pasien baru
-                // $request['pasienbaru'] = 0;
-
-                $pasien = DB::table('rsmst_pasiens')->where('nokartu_bpjs',  $request->nomorkartu)->first();
-
-                if (empty($pasien)) {
-                    return $this->sendError($request, "Nomor Kartu BPJS Pasien termasuk Pasien Baru di RSI Madinah. Silahkan daftar melalui pendaftaran offline",  201);
-                }
-
-                // cek no kartu sesuai tidak
-                if ($pasien->nik_bpjs != $request->nik) {
-                    return $this->sendError($request, "NIK anda yang terdaftar di BPJS dengan Di RSI Madinah berbeda. Silahkan perbaiki melalui pendaftaran offline",  201);
-                }
 
 
 
