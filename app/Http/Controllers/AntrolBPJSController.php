@@ -483,7 +483,7 @@ class AntrolBPJSController extends Controller
                 $jammulai   = substr($antrian->jampraktek, 0, 5);
                 $jamselesai = substr($antrian->jampraktek, 6, 5);
                 $tanggalperiksa = $antrian->tanggalperiksa . ' ' . $jammulai . ':00';
-                $waktucheckin = Carbon::createFromTimestamp($request->waktu / 1000)->toDateTimeString();;
+                $waktucheckin = Carbon::createFromTimestamp($request->waktu / 1000)->timezone('Asia/Jakarta')->toDateTimeString();
 
                 $checkIn2Jam = Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin, 'Asia/Jakarta')->diffInHours(Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa, 'Asia/Jakarta'), false);
 
