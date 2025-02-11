@@ -92,7 +92,7 @@ class AntrolBPJSController extends Controller
                         "namapoli" => 'BEDAH',
                         "terlaksana" => $jadwalop->status == 'Menunggu' ? 0 : 1,
                         "nopeserta" => $jadwalop->no_peserta,
-                        "lastupdate" => now()->timestamp * 1000,
+                        "lastupdate" => now(env('APP_TIMEZONE'))->timestamp * 1000,
                     ];
                 }
                 $response = [
@@ -156,7 +156,7 @@ class AntrolBPJSController extends Controller
                         "namapoli" => 'BEDAH',
                         "terlaksana" => $jadwalop->status == 'Menunggu' ? 0 : 1,
                         "nopeserta" => $jadwalop->no_peserta,
-                        "lastupdate" => now()->timestamp * 1000,
+                        "lastupdate" => now(env('APP_TIMEZONE'))->timestamp * 1000,
                     ];
                 }
                 $response = [
@@ -257,7 +257,7 @@ class AntrolBPJSController extends Controller
                     return $this->sendError($request, "Tanggal periksa sudah terlewat", 201);
                 }
                 // check tanggal hanya 7 hari
-                if (Carbon::parse($request->tanggalperiksa) >  Carbon::now()->addDay(13)) {
+                if (Carbon::parse($request->tanggalperiksa) >  Carbon::now(env('APP_TIMEZONE'))->addDay(13)) {
                     return $this->sendError($request, "Antrian hanya dapat dibuat untuk 14 hari ke kedepan", 201);
                 }
 
@@ -343,7 +343,7 @@ class AntrolBPJSController extends Controller
                 // proses antrian
                 $noUrutAntrian = DB::scalar($sql, [
                     "drId" => $cekQuota->dr_id,
-                    "tgl" => Carbon::createFromFormat('Y-m-d', $request->tanggalperiksa, 'Asia/Jakarta')->format('dmY')
+                    "tgl" => Carbon::createFromFormat('Y-m-d', $request->tanggalperiksa, env('APP_TIMEZONE'))->format('dmY')
                 ]);
 
                 $sqlBooking = "select count(*) no_antrian
@@ -359,9 +359,9 @@ class AntrolBPJSController extends Controller
                 $noAntrian = $noUrutAntrian + $noUrutAntrianBooking + 1;
 
                 $tanggalperiksa = $request->tanggalperiksa . ' ' . $jammulai . ':00';
-                $jadwalEstimasiTimestamp = Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa, 'Asia/Jakarta')->addMinutes(10 * ($noAntrian + 1))->timestamp * 1000;
+                $jadwalEstimasiTimestamp = Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa, env('APP_TIMEZONE'))->addMinutes(10 * ($noAntrian + 1))->timestamp * 1000;
 
-                $noBooking = Carbon::now()->format('YmdHis') . 'JKN';
+                $noBooking = Carbon::now(env('APP_TIMEZONE'))->format('YmdHis') . 'JKN';
 
                 try {
                     $norm = strtoupper($request->norm);
@@ -393,7 +393,7 @@ class AntrolBPJSController extends Controller
                             "validasi" => "",
                             "statuskirim" => "Belum",
                             "keterangan_batal" => "",
-                            "tanggalbooking" => Carbon::now()->format('Y-m-d H:i:s'),
+                            "tanggalbooking" => Carbon::now(env('APP_TIMEZONE'))->format('Y-m-d H:i:s'),
                             "daftardariapp" => "JKNMobileAPP",
                         ]);
 
@@ -483,9 +483,9 @@ class AntrolBPJSController extends Controller
                 $jammulai   = substr($antrian->jampraktek, 0, 5);
                 $jamselesai = substr($antrian->jampraktek, 6, 5);
                 $tanggalperiksa = $antrian->tanggalperiksa . ' ' . $jammulai . ':00';
-                $waktucheckin = Carbon::createFromTimestamp($request->waktu / 1000)->timezone('Asia/Jakarta')->toDateTimeString();
+                $waktucheckin = Carbon::createFromTimestamp($request->waktu / 1000)->timezone(env('APP_TIMEZONE'))->toDateTimeString();
 
-                $checkIn2Jam = Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin, 'Asia/Jakarta')->diffInHours(Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa, 'Asia/Jakarta'), false);
+                $checkIn2Jam = Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin, env('APP_TIMEZONE'))->diffInHours(Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa, env('APP_TIMEZONE')), false);
 
                 // return ($checkIn2Jam . '  ' . $tanggalperiksa . '  ' . $waktucheckin);
 
@@ -555,7 +555,7 @@ class AntrolBPJSController extends Controller
 
                     $noUrutAntrian = DB::scalar($sql, [
                         "drId" => $cekQuota->dr_id,
-                        "tgl" => Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin, 'Asia/Jakarta')->format('dmY')
+                        "tgl" => Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin, env('APP_TIMEZONE'))->format('dmY')
                     ]);
                     $noAntrian = $noUrutAntrian + 1;
 
@@ -624,7 +624,7 @@ class AntrolBPJSController extends Controller
                         ->where('nobooking', $request->kodebooking)
                         ->update([
                             'status' => 'Checkin',
-                            'validasi' => Carbon::now()->format('Y-m-d H:i:s')
+                            'validasi' => Carbon::now(env('APP_TIMEZONE'))->format('Y-m-d H:i:s')
                         ]);
 
                     // insert to rjhdr
@@ -724,7 +724,7 @@ class AntrolBPJSController extends Controller
                     ->where('nobooking', $request->kodebooking)
                     ->update([
                         'status' => 'Batal',
-                        'keterangan_batal' => Carbon::now()->format('Y-m-d H:i:s')
+                        'keterangan_batal' => Carbon::now(env('APP_TIMEZONE'))->format('Y-m-d H:i:s')
                     ]);
 
 
@@ -871,7 +871,7 @@ class AntrolBPJSController extends Controller
                     "kuotajkn" => $cekQuota->kuota,
                     "sisakuotanonjkn" => $cekQuota->kuota -  $noAntrian,
                     "kuotanonjkn" =>  $cekQuota->kuota,
-                    "keterangan" => "Informasi antrian poliklinik " . Carbon::now()->format('Y-m-d H:i:s'),
+                    "keterangan" => "Informasi antrian poliklinik " . Carbon::now(env('APP_TIMEZONE'))->format('Y-m-d H:i:s'),
                 ];
 
                 return $this->sendResponse($request, $response, 200);
@@ -992,7 +992,7 @@ class AntrolBPJSController extends Controller
                         : 0)
                     : 0;
 
-                $hari = strtoupper($this->hariIndo(Carbon::now()->dayName));
+                $hari = strtoupper($this->hariIndo(Carbon::now(env('APP_TIMEZONE'))->dayName));
                 $cekDaftar = DB::table('scview_scpolis')
                     ->select('kuota', 'mulai_praktek', 'selesai_praktek', 'poli_id', 'dr_id', 'poli_desc', 'dr_name', 'shift')
                     ->where('kd_poli_bpjs', $kd_poli_bpjs)
@@ -1016,7 +1016,7 @@ class AntrolBPJSController extends Controller
                     "sisaantrean" => $kuota -  $noAntrian,
                     "antreanpanggil" => $waktuMasukPoli,
                     "waktutunggu" => $kuota -  $noAntrian,
-                    "keterangan" => "Informasi antrian poliklinik " . Carbon::now()->format('Y-m-d H:i:s'),
+                    "keterangan" => "Informasi antrian poliklinik " . Carbon::now(env('APP_TIMEZONE'))->format('Y-m-d H:i:s'),
 
                 ];
 
@@ -1117,7 +1117,7 @@ class AntrolBPJSController extends Controller
         $waktucheckin = '2023-11-24 10:30:00';
         $tanggalperiksa = '2023-11-23 15:15:00';
 
-        $hoursDifference = Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin, 'Asia/Jakarta')->diffInHours(Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa, 'Asia/Jakarta'), false);
+        $hoursDifference = Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin, env('APP_TIMEZONE'))->diffInHours(Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa, env('APP_TIMEZONE')), false);
 
         echo "Difference in hours: " . $hoursDifference;
         dd('xxxx');
@@ -1125,7 +1125,7 @@ class AntrolBPJSController extends Controller
         // $noAntrian = 10;
         // $jammulai = '11:00';
         // $tanggalperiksa = $request->tanggalperiksa . ' ' . $jammulai . ':00';
-        // $jadwalEstimasiTimestamp = Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa, 'Asia/Jakarta')->addMinutes(10 * ($noAntrian + 1))->timestamp * 1000;
+        // $jadwalEstimasiTimestamp = Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa, env('APP_TIMEZONE'))->addMinutes(10 * ($noAntrian + 1))->timestamp * 1000;
 
         // $date = Carbon::createFromTimestamp($jadwalEstimasiTimestamp / 1000)->toDateTimeString();
         // return $tanggalperiksa . '  ' . $date . '  ' . $jadwalEstimasiTimestamp;

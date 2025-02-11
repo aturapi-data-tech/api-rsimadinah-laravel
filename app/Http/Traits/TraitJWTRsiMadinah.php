@@ -225,7 +225,7 @@ trait TraitJWTRsiMadinah
         ];
 
         DB::table('api_log_status')->insert([
-            'datetime' =>  Carbon::now(),
+            'datetime' =>  Carbon::now(env('APP_TIMEZONE')),
             'response' => json_encode($response, true),
             'request' => json_encode($logInfo, true),
         ]);
@@ -246,7 +246,7 @@ trait TraitJWTRsiMadinah
         ];
 
         DB::table('api_log_status')->insert([
-            'datetime' =>  Carbon::now(),
+            'datetime' =>  Carbon::now(env('APP_TIMEZONE')),
             'response' => json_encode($response, true),
             'request' => json_encode($logInfo, true),
         ]);
