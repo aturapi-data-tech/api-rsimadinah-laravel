@@ -284,23 +284,18 @@ class AntrolBPJSController extends Controller
         }
 
         // Hitung nomor antrian
-        $sql = "select count(*) no_antrian
-                from rstxn_rjhdrs
-                where dr_id = :drId
-                and to_char(rj_date,'ddmmyyyy') = :tgl
-                and klaim_id != 'KR'";
-        $noUrutAntrian = DB::scalar($sql, [
-            "drId" => $cekQuota->dr_id,
-            "tgl"  => Carbon::createFromFormat('Y-m-d', $request->tanggalperiksa, config('app.timezone'))->format('dmY')
-        ]);
-        $sqlBooking = "select count(*) no_antrian
-                       from referensi_mobilejkn_bpjs
-                       where kodedokter = :drId
-                       and tanggalperiksa = :tgl";
-        $noUrutAntrianBooking = DB::scalar($sqlBooking, [
-            "drId" => $request->kodedokter,
-            "tgl"  => $request->tanggalperiksa
-        ]);
+        $noUrutAntrian = DB::table('rstxn_rjhdrs')
+            ->where('dr_id', $cekQuota->dr_id)
+            ->whereRaw("to_char(rj_date, 'ddmmyyyy') = ?", [
+                Carbon::createFromFormat('Y-m-d', $request->tanggalperiksa, config('app.timezone'))->format('dmY')
+            ])
+            ->where('klaim_id', '!=', 'KR')
+            ->count();
+
+        $noUrutAntrianBooking = DB::table('referensi_mobilejkn_bpjs')
+            ->where('kodedokter', $request->kodedokter)
+            ->where('tanggalperiksa', $request->tanggalperiksa)
+            ->count();
         $noAntrian = $noUrutAntrian + $noUrutAntrianBooking + 1;
 
         $tanggalperiksaFull = $request->tanggalperiksa . ' ' . $jammulai . ':00';
@@ -402,13 +397,13 @@ class AntrolBPJSController extends Controller
             ->timezone(config('app.timezone'))
             ->toDateTimeString();
 
-        $checkIn2Jam = Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin, config('app.timezone'))
+        $checkIn1Jam = Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin, config('app.timezone'))
             ->diffInHours(Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksaFull, config('app.timezone')), false);
-        if ($checkIn2Jam < -2) {
-            return $this->sendError($request, "Lakukan Checkin 2 Jam Sebelum Pelayanan, Pelayanan dimulai " . $tanggalperiksaFull, 201);
+        if ($checkIn1Jam < -1) {
+            return $this->sendError($request, "Lakukan Checkin 1 Jam Sebelum Pelayanan, Pelayanan dimulai " . $tanggalperiksaFull, 201);
         }
-        if ($checkIn2Jam > 2) {
-            return $this->sendError($request, "Checkin Anda sudah expired " . abs($checkIn2Jam) . " Jam yang lalu, Silahkan konfirmasi ke loket pendaftaran ", 201);
+        if ($checkIn1Jam > 2) {
+            return $this->sendError($request, "Checkin Anda sudah expired " . abs($checkIn1Jam) . " Jam yang lalu, Silahkan konfirmasi ke loket pendaftaran ", 201);
         }
 
         $hari = strtoupper($this->hariIndo(Carbon::parse($tanggalperiksaFull)->dayName));
@@ -436,17 +431,18 @@ class AntrolBPJSController extends Controller
         }
 
         try {
-            $sql = "select nvl(max(rj_no)+1,1) rjno_max from rstxn_rjhdrs";
-            $rjNo = DB::scalar($sql);
-            $sqlAntrian = "select count(*) no_antrian
-                           from rstxn_rjhdrs
-                           where dr_id = :drId
-                           and to_char(rj_date,'ddmmyyyy') = :tgl
-                           and klaim_id != 'KR'";
-            $noUrutAntrian = DB::scalar($sqlAntrian, [
-                "drId" => $cekQuota->dr_id,
-                "tgl"  => Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin, config('app.timezone'))->format('dmY')
-            ]);
+            $rjNo = DB::table('rstxn_rjhdrs')
+                ->select(DB::raw("nvl(max(rj_no) + 1, 1) as rjno_max"))
+                ->value('rjno_max');
+
+            $noUrutAntrian = DB::table('rstxn_rjhdrs')
+                ->where('dr_id', $cekQuota->dr_id)
+                ->whereRaw("to_char(rj_date, 'ddmmyyyy') = ?", [
+                    Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin, config('app.timezone'))->format('dmY')
+                ])
+                ->where('klaim_id', '!=', 'KR')
+                ->count();
+
             $noAntrian = $noUrutAntrian + 1;
 
             DB::table('rstxn_rjhdrs')->insert([
