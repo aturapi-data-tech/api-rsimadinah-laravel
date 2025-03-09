@@ -4,6 +4,7 @@ namespace App\Exceptions;
 
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Throwable;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 class Handler extends ExceptionHandler
 {
@@ -12,6 +13,10 @@ class Handler extends ExceptionHandler
      *
      * @var array<int, string>
      */
+    protected $dontReport = [
+        //
+    ];
+
     protected $dontFlash = [
         'current_password',
         'password',
@@ -26,5 +31,23 @@ class Handler extends ExceptionHandler
         $this->reportable(function (Throwable $e) {
             //
         });
+    }
+
+    public function render($request, Throwable $exception)
+    {
+        // Jika request mengharapkan JSON (misalnya untuk API), kembalikan response JSON
+        if ($request->expectsJson() || $request->wantsJson()) {
+            $status = 500;
+            if ($exception instanceof HttpExceptionInterface) {
+                $status = $exception->getStatusCode();
+            }
+
+            return response()->json([
+                'error'   => 'Error',
+                'message' => $exception->getMessage(),
+            ], $status);
+        }
+
+        return parent::render($request, $exception);
     }
 }
