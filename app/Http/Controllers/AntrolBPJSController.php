@@ -371,6 +371,7 @@ class AntrolBPJSController extends Controller
             "kodebooking" => "required",
             "waktu"       => "required",
         ]);
+
         if ($validator->fails()) {
             return $this->sendError($request, $validator->errors()->first(), 201);
         }
@@ -391,22 +392,50 @@ class AntrolBPJSController extends Controller
             return $this->sendError($request, "Anda Sudah Checkin pada " . $antrian->validasi, 201);
         }
 
-        $jammulai = substr($antrian->jampraktek, 0, 5);
-        $tanggalperiksaFull = $antrian->tanggalperiksa . ' ' . $jammulai . ':00';
-        $waktucheckin = Carbon::createFromTimestamp($request->waktu / 1000)
-            ->timezone(config('app.timezone'))
-            ->toDateTimeString();
+        // cek waktucheckin
+        // Misalnya, kolom jampraktek berisi "17:00-20:00"
+        $jamPraktek = $antrian->jampraktek;
 
-        $checkIn1Jam = Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin, config('app.timezone'))
-            ->diffInHours(Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksaFull, config('app.timezone')), false);
-        if ($checkIn1Jam < -1) {
-            return $this->sendError($request, "Lakukan Checkin 1 Jam Sebelum Pelayanan, Pelayanan dimulai " . $tanggalperiksaFull, 201);
-        }
-        if ($checkIn1Jam > 2) {
-            return $this->sendError($request, "Checkin Anda sudah expired " . abs($checkIn1Jam) . " Jam yang lalu, Silahkan konfirmasi ke loket pendaftaran ", 201);
+        // Pisahkan waktu mulai dan waktu selesai dengan menggunakan explode
+        list($jammulai, $jamselesai) = explode('-', $jamPraktek);
+
+        // Buat format tanggal lengkap untuk waktu mulai dan selesai
+        $tanggalperiksaMulai  = $antrian->tanggalperiksa . ' ' . trim($jammulai) . ':00';
+        $tanggalperiksaSelesai = $antrian->tanggalperiksa . ' ' . trim($jamselesai) . ':00';
+
+        // Konversi waktu checkin dari timestamp (dalam milidetik) menjadi objek Carbon
+        $waktuCheckin = Carbon::createFromTimestamp($request->waktu / 1000)
+            ->timezone(config('app.timezone'));
+
+        // Hitung batas waktu checkin:
+        // Batas awal: 1 jam sebelum waktu mulai pelayanan subHour();
+        $startCheckinAllowed = Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksaMulai, config('app.timezone'))
+            ->subHour();
+        // Batas akhir: waktu selesai pelayanan
+        $endCheckinAllowed = Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksaSelesai, config('app.timezone'));
+
+        // Validasi: waktu checkin tidak boleh lebih awal dari batas awal
+        // lt() adalah kependekan dari less than (kurang dari)
+        if ($waktuCheckin->lt($startCheckinAllowed)) {
+            return $this->sendError(
+                $request,
+                "Lakukan checkin minimal 1 jam sebelum pelayanan. Pelayanan dimulai pada: " . $tanggalperiksaMulai,
+                201
+            );
         }
 
-        $hari = strtoupper($this->hariIndo(Carbon::parse($tanggalperiksaFull)->dayName));
+        // Validasi: waktu checkin tidak boleh melebihi waktu selesai pelayanan
+        // gt() adalah kependekan dari greater than (lebih dari)
+        if ($waktuCheckin->gt($endCheckinAllowed)) {
+            return $this->sendError(
+                $request,
+                "Checkin sudah expired karena pelayanan telah berakhir pada: " . $tanggalperiksaSelesai,
+                201
+            );
+        }
+
+
+        $hari = strtoupper($this->hariIndo(Carbon::parse($tanggalperiksaMulai)->dayName));
         $cekQuota = DB::table('scview_scpolis')
             ->select('kuota', 'mulai_praktek', 'selesai_praktek', 'poli_id', 'dr_id', 'poli_desc', 'dr_name', 'shift')
             ->where('kd_poli_bpjs', $antrian->kodepoli)
@@ -438,7 +467,7 @@ class AntrolBPJSController extends Controller
             $noUrutAntrian = DB::table('rstxn_rjhdrs')
                 ->where('dr_id', $cekQuota->dr_id)
                 ->whereRaw("to_char(rj_date, 'ddmmyyyy') = ?", [
-                    Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin, config('app.timezone'))->format('dmY')
+                    Carbon::createFromFormat('Y-m-d H:i:s', $waktuCheckin, config('app.timezone'))->format('dmY')
                 ])
                 ->where('klaim_id', '!=', 'KR')
                 ->count();
@@ -447,7 +476,7 @@ class AntrolBPJSController extends Controller
 
             DB::table('rstxn_rjhdrs')->insert([
                 'rj_no'                => $rjNo,
-                'rj_date'              => DB::raw("to_date('" . $waktucheckin . "', 'yyyy-mm-dd hh24:mi:ss')"),
+                'rj_date'              => DB::raw("to_date('" . $waktuCheckin . "', 'yyyy-mm-dd hh24:mi:ss')"),
                 'reg_no'               => strtoupper($antrian->norm),
                 'nobooking'            => $request->kodebooking,
                 'no_antrian'           => $noAntrian,
@@ -462,7 +491,7 @@ class AntrolBPJSController extends Controller
                 'cek_lab'              => '0',
                 'sl_codefrom'          => '02',
                 'kunjungan_internal_status' => '0',
-                'waktu_masuk_pelayanan' => DB::raw("to_date('" . $waktucheckin . "', 'yyyy-mm-dd hh24:mi:ss')")
+                'waktu_masuk_pelayanan' => DB::raw("to_date('" . $waktuCheckin . "', 'yyyy-mm-dd hh24:mi:ss')")
             ]);
         } catch (Exception $e) {
             return $this->sendError($request, $e->getMessage(), 500);
@@ -789,16 +818,60 @@ class AntrolBPJSController extends Controller
      */
     public function x(Request $request)
     {
-        return $this->sendError($request, 'yyyy', 201);
+        // $timestampMillis = Carbon::now()->valueOf();
+        // return ($timestampMillis);
 
-        $waktucheckin = '2023-11-24 10:30:00';
-        $tanggalperiksa = '2023-11-23 15:15:00';
+        $validator = Validator::make($request->all(), [
+            "kodebooking" => "required",
+            "waktu"       => "required",
+        ]);
+        if ($validator->fails()) {
+            return $this->sendError($request, $validator->errors()->first(), 201);
+        }
 
-        $hoursDifference = Carbon::createFromFormat('Y-m-d H:i:s', $waktucheckin, 'Asia/Jakarta')->diffInHours(Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksa, 'Asia/Jakarta'), false);
+        $antrian = DB::table('referensi_mobilejkn_bpjs')
+            ->where('nobooking', $request->kodebooking)
+            ->first();
+        if (!$antrian) {
+            return $this->sendError($request, "No Booking (" . $request->kodebooking . ") invalid.", 201);
+        }
+        if (!Carbon::parse($antrian->tanggalperiksa)->isToday()) {
+            return $this->sendError($request, "Tanggal periksa bukan hari ini, tetapi tgl " . $antrian->tanggalperiksa, 201);
+        }
+        if ($antrian->status == 'Batal') {
+            return $this->sendError($request, "Antrian telah dibatalkan sebelumnya.", 201);
+        }
+        if ($antrian->status == 'Checkin') {
+            return $this->sendError($request, "Anda Sudah Checkin pada " . $antrian->validasi, 201);
+        }
+        // echo "Difference in hours: " . $hoursDifference;
 
-        echo "Difference in hours: " . $hoursDifference;
-        dd('xxxx');
 
+        $validator = Validator::make($request->all(), [
+            "kodebooking" => "required",
+            "waktu"       => "required",
+        ]);
+        if ($validator->fails()) {
+            return $this->sendError($request, $validator->errors()->first(), 201);
+        }
+        return ('x');
+        return ('y');
+
+        $antrian = DB::table('referensi_mobilejkn_bpjs')
+            ->where('nobooking', $request->kodebooking)
+            ->first();
+        if (!$antrian) {
+            return $this->sendError($request, "No Booking (" . $request->kodebooking . ") invalid.", 201);
+        }
+        if (!Carbon::parse($antrian->tanggalperiksa)->isToday()) {
+            return $this->sendError($request, "Tanggal periksa bukan hari ini, tetapi tgl " . $antrian->tanggalperiksa, 201);
+        }
+        if ($antrian->status == 'Batal') {
+            return $this->sendError($request, "Antrian telah dibatalkan sebelumnya.", 201);
+        }
+        if ($antrian->status == 'Checkin') {
+            return $this->sendError($request, "Anda Sudah Checkin pada " . $antrian->validasi, 201);
+        }
         // $noAntrian = 10;
         // $jammulai = '11:00';
         // $tanggalperiksa = $request->tanggalperiksa . ' ' . $jammulai . ':00';
