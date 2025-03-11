@@ -175,26 +175,6 @@ class AntrolBPJSController extends Controller
             return $auth;
         }
 
-        $rules = [
-            "nomorkartu"     => "required|numeric|digits:13",
-            "nik"            => "required|numeric|digits:16",
-            "nohp"           => "required",
-            "kodepoli"       => "required",
-            "norm"           => "required",
-            "tanggalperiksa" => "required|date|date_format:Y-m-d",
-            "kodedokter"     => "required",
-            "jampraktek"     => "required",
-            "jeniskunjungan" => "required|numeric|between:1,4",
-        ];
-        if ($request->jeniskunjungan != 2) {
-            $rules['nomorreferensi'] = "required";
-        }
-
-        $validator = Validator::make($request->all(), $rules);
-        if ($validator->fails()) {
-            return $this->sendError($request, $validator->errors()->first(), 201);
-        }
-
         // Cek pasien
         $pasien = DB::table('rsmst_pasiens')
             ->select('reg_no', 'nokartu_bpjs', 'nik_bpjs')
@@ -220,6 +200,26 @@ class AntrolBPJSController extends Controller
             } else {
                 return $this->sendError($request, "Nomor Rekam medis tidak ditemukan, silakan konfirmasi petugas untuk melakukan update data anda.", 201);
             }
+        }
+
+        $rules = [
+            "nomorkartu"     => "required|numeric|digits:13",
+            "nik"            => "required|numeric|digits:16",
+            "nohp"           => "required",
+            "kodepoli"       => "required",
+            "norm"           => "required",
+            "tanggalperiksa" => "required|date|date_format:Y-m-d",
+            "kodedokter"     => "required",
+            "jampraktek"     => "required",
+            "jeniskunjungan" => "required|numeric|between:1,4",
+        ];
+        if ($request->jeniskunjungan != 2) {
+            $rules['nomorreferensi'] = "required";
+        }
+
+        $validator = Validator::make($request->all(), $rules);
+        if ($validator->fails()) {
+            return $this->sendError($request, $validator->errors()->first(), 201);
         }
 
         // Validasi tanggal periksa
