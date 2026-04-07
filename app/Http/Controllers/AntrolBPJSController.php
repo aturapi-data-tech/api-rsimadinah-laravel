@@ -292,9 +292,11 @@ class AntrolBPJSController extends Controller
             ->where('klaim_id', '!=', 'KR')
             ->count();
 
+        // Hanya booking yang belum checkin (Checkin sudah masuk rstxn_rjhdrs, Batal tidak dihitung)
         $noUrutAntrianBooking = DB::table('referensi_mobilejkn_bpjs')
             ->where('kodedokter', $request->kodedokter)
             ->where('tanggalperiksa', $request->tanggalperiksa)
+            ->where('status', 'Belum')
             ->count();
         $noAntrian = $noUrutAntrian + $noUrutAntrianBooking + 1;
 
@@ -464,15 +466,8 @@ class AntrolBPJSController extends Controller
                 ->select(DB::raw("nvl(max(rj_no) + 1, 1) as rjno_max"))
                 ->value('rjno_max');
 
-            $noUrutAntrian = DB::table('rstxn_rjhdrs')
-                ->where('dr_id', $cekQuota->dr_id)
-                ->whereRaw("to_char(rj_date, 'ddmmyyyy') = ?", [
-                    Carbon::createFromFormat('Y-m-d H:i:s', $waktuCheckin, config('app.timezone'))->format('dmY')
-                ])
-                ->where('klaim_id', '!=', 'KR')
-                ->count();
-
-            $noAntrian = $noUrutAntrian + 1;
+            // Pakai angkaantrean yang sudah ditetapkan saat booking (konsisten dengan admin checkin)
+            $noAntrian = (int) $antrian->angkaantrean;
 
             DB::table('rstxn_rjhdrs')->insert([
                 'rj_no'                => $rjNo,
