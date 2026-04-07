@@ -469,16 +469,25 @@ class AntrolBPJSController extends Controller
             // Pakai angkaantrean yang sudah ditetapkan saat booking (konsisten dengan admin checkin)
             $noAntrian = (int) $antrian->angkaantrean;
 
+            // rj_date = tanggalperiksa + jammulai (jadwal booking, bukan jam checkin)
+            $rjDateStr = $antrian->tanggalperiksa . ' ' . $jammulai . ':00';
+
+            // Shift dari rstxn_shiftctls berdasarkan jam mulai praktek
+            $shiftRow = DB::table('rstxn_shiftctls')
+                ->whereRaw("? BETWEEN shift_sta AND shift_end", [$jammulai . ':00'])
+                ->first();
+            $shift = $shiftRow->shift ?? $cekQuota->shift;
+
             DB::table('rstxn_rjhdrs')->insert([
                 'rj_no'                => $rjNo,
-                'rj_date'              => DB::raw("to_date('" . $waktuCheckin . "', 'yyyy-mm-dd hh24:mi:ss')"),
+                'rj_date'              => DB::raw("to_date('" . $rjDateStr . "', 'yyyy-mm-dd hh24:mi:ss')"),
                 'reg_no'               => strtoupper($antrian->norm),
                 'nobooking'            => $request->kodebooking,
                 'no_antrian'           => $noAntrian,
                 'klaim_id'             => 'JM',
                 'poli_id'              => $cekQuota->poli_id,
                 'dr_id'                => $cekQuota->dr_id,
-                'shift'                => $cekQuota->shift,
+                'shift'                => $shift,
                 'txn_status'           => 'A',
                 'rj_status'            => 'A',
                 'erm_status'           => 'A',
