@@ -474,7 +474,7 @@ class AntrolBPJSController extends Controller
 
             // Shift dari rstxn_shiftctls berdasarkan jam mulai praktek
             $shiftRow = DB::table('rstxn_shiftctls')
-                ->whereRaw("? BETWEEN shift_sta AND shift_end", [$jammulai . ':00'])
+                ->whereRaw("? BETWEEN shift_start AND shift_end", [$jammulai . ':00'])
                 ->first();
             $shift = $shiftRow->shift ?? $cekQuota->shift;
 
