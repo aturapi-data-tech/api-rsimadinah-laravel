@@ -354,7 +354,7 @@ class AntrolBPJSController extends Controller
 
             return $this->sendResponse($request, $response, 200);
         } catch (Exception $e) {
-            return $this->sendError($request, $e->getMessage(), 500);
+            return $this->sendError($request, $e->getMessage(), 201);
         }
     }
 
@@ -498,7 +498,7 @@ class AntrolBPJSController extends Controller
                 'waktu_masuk_pelayanan' => DB::raw("to_date('" . $waktuCheckin . "', 'yyyy-mm-dd hh24:mi:ss')")
             ]);
         } catch (Exception $e) {
-            return $this->sendError($request, $e->getMessage(), 500);
+            return $this->sendError($request, $e->getMessage(), 201);
         }
 
         try {
@@ -539,7 +539,7 @@ class AntrolBPJSController extends Controller
             $this->pushDataAntrian($myAntreanadd, $rjNo, $request->kodebooking, $request->waktu);
             return $this->sendResponse($request, "OK Peserta harap 1 jam lebih awal guna pencatatan administrasi " . $request->kodebooking, 200);
         } catch (Exception $e) {
-            return $this->sendError($request, $e->getMessage(), 500);
+            return $this->sendError($request, $e->getMessage(), 201);
         }
     }
 
