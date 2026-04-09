@@ -101,7 +101,15 @@ class AntrolBPJSController extends Controller
         $endDate   = Carbon::parse($request->tanggalakhir)->endOfDay();
 
         $jadwalops = DB::table('booking_operasi')
-            ->whereBetween('tanggal', [$startDate, $endDate])
+            ->leftJoin('rsmst_doctors', 'booking_operasi.dr_id', '=', 'rsmst_doctors.dr_id')
+            ->leftJoin('rsmst_polis', 'booking_operasi.poli_id', '=', 'rsmst_polis.poli_id')
+            ->select(
+                'booking_operasi.*',
+                'rsmst_doctors.kd_dr_bpjs',
+                'rsmst_polis.kd_poli_bpjs',
+                'rsmst_polis.poli_desc'
+            )
+            ->whereBetween('booking_operasi.tanggal', [$startDate, $endDate])
             ->get();
 
         if ($jadwalops->isEmpty()) {
@@ -114,8 +122,9 @@ class AntrolBPJSController extends Controller
                 "kodebooking"    => $jadwalop->no_rawat,
                 "tanggaloperasi" => Carbon::parse($jadwalop->tanggal)->format('Y-m-d'),
                 "jenistindakan"  => $jadwalop->nm_paket,
-                "kodepoli"       => $jadwalop->POLI_ID ?? 'BED',
-                "namapoli"       => 'BEDAH',
+                "kodepoli"       => $jadwalop->kd_poli_bpjs ?? 'BED',
+                "namapoli"       => $jadwalop->poli_desc ?? 'BEDAH',
+                "kodedokter"     => $jadwalop->kd_dr_bpjs ?? '',
                 "terlaksana"     => $jadwalop->status === 'Menunggu' ? 0 : 1,
                 "nopeserta"      => $jadwalop->no_peserta,
                 "lastupdate"     => now(config('app.timezone'))->timestamp * 1000,
@@ -143,7 +152,15 @@ class AntrolBPJSController extends Controller
         }
 
         $jadwalops = DB::table('booking_operasi')
-            ->where('no_peserta', $request->nopeserta)
+            ->leftJoin('rsmst_doctors', 'booking_operasi.dr_id', '=', 'rsmst_doctors.dr_id')
+            ->leftJoin('rsmst_polis', 'booking_operasi.poli_id', '=', 'rsmst_polis.poli_id')
+            ->select(
+                'booking_operasi.*',
+                'rsmst_doctors.kd_dr_bpjs',
+                'rsmst_polis.kd_poli_bpjs',
+                'rsmst_polis.poli_desc'
+            )
+            ->where('booking_operasi.no_peserta', $request->nopeserta)
             ->get();
 
         if ($jadwalops->isEmpty()) {
@@ -156,8 +173,9 @@ class AntrolBPJSController extends Controller
                 "kodebooking"    => $jadwalop->no_rawat,
                 "tanggaloperasi" => Carbon::parse($jadwalop->tanggal)->format('Y-m-d'),
                 "jenistindakan"  => $jadwalop->nm_paket,
-                "kodepoli"       => $jadwalop->POLI_ID ?? 'BED',
-                "namapoli"       => 'BEDAH',
+                "kodepoli"       => $jadwalop->kd_poli_bpjs ?? 'BED',
+                "namapoli"       => $jadwalop->poli_desc ?? 'BEDAH',
+                "kodedokter"     => $jadwalop->kd_dr_bpjs ?? '',
                 "terlaksana"     => $jadwalop->status === 'Menunggu' ? 0 : 1,
                 "nopeserta"      => $jadwalop->no_peserta,
                 "lastupdate"     => now(config('app.timezone'))->timestamp * 1000,
