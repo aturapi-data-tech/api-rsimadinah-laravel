@@ -9,12 +9,13 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Validator;
 use App\Http\Traits\TraitJWTRsiMadinah;
 use App\Http\Traits\BPJS\AntrianTrait;
+use App\Http\Traits\Txn\Rj\EmrRJTrait;
 use App\Models\User;
 use Exception;
 
 class AntrolBPJSController extends Controller
 {
-    use TraitJWTRsiMadinah, AntrianTrait;
+    use TraitJWTRsiMadinah, AntrianTrait, EmrRJTrait;
     /////////////
     // API SIMRS
     /////////////
@@ -487,14 +488,17 @@ class AntrolBPJSController extends Controller
             // Pakai angkaantrean yang sudah ditetapkan saat booking (konsisten dengan admin checkin)
             $noAntrian = (int) $antrian->angkaantrean;
 
-            // rj_date = tanggalperiksa + jammulai (jadwal booking, bukan jam checkin)
-            $rjDateStr = $antrian->tanggalperiksa . ' ' . $jammulai . ':00';
+            // rj_date = waktu realtime checkin (bukan jadwal dokter)
+            // Alasan: jika dokter datang lebih awal dan mulai pelayanan,
+            // task 3 (checkin) harus mencerminkan waktu sebenarnya agar
+            // tidak terjadi anomali task 4 < task 3 di BPJS
+            $rjDateStr = $waktuCheckin->format('Y-m-d H:i:s');
 
-            // Shift dari rstxn_shiftctls berdasarkan jam mulai praktek
+            // Shift dari rstxn_shiftctls berdasarkan jam checkin realtime
             $shiftRow = DB::table('rstxn_shiftctls')
-                ->whereRaw("? BETWEEN shift_start AND shift_end", [$jammulai . ':00'])
+                ->whereRaw("? BETWEEN shift_start AND shift_end", [$waktuCheckin->format('H:i:s')])
                 ->first();
-            $shift = $shiftRow->shift ?? $cekQuota->shift;
+            $shift = (string) ($shiftRow->shift ?? $cekQuota->shift);
 
             DB::table('rstxn_rjhdrs')->insert([
                 'rj_no'                => $rjNo,
@@ -512,8 +516,8 @@ class AntrolBPJSController extends Controller
                 'pass_status'          => 'O',
                 'cek_lab'              => '0',
                 'sl_codefrom'          => '02',
-                'kunjungan_internal_status' => '0',
-                'waktu_masuk_pelayanan' => DB::raw("to_date('" . $waktuCheckin . "', 'yyyy-mm-dd hh24:mi:ss')")
+                'kunjungan_internal_status' => $antrian->jeniskunjungan == 2 ? '1' : '0',
+                'waktu_masuk_pelayanan' => DB::raw("to_date('" . $rjDateStr . "', 'yyyy-mm-dd hh24:mi:ss')")
             ]);
         } catch (Exception $e) {
             return $this->sendError($request, $e->getMessage(), 201);
@@ -554,7 +558,22 @@ class AntrolBPJSController extends Controller
                 "keterangan"       => "Peserta harap 1 jam lebih awal guna pencatatan administrasi.",
             ];
 
-            $this->pushDataAntrian($myAntreanadd, $rjNo, $request->kodebooking, $request->waktu);
+            // ── 1. Tambah Antrean BPJS ──
+            $antrianResult = $this->pushDataAntrian($myAntreanadd, $rjNo, $request->kodebooking, $request->waktu);
+
+            // Task 1 & 2 tidak dipush di sini — itu untuk pendaftaran pasien baru
+            // (regDate & regDateStore), dipush oleh daftar-rj-actions saat save
+
+            // ── 2. Simpan datadaftarpolirj_json ──
+            $dataDaftarPoliRJ = $this->findDataRJ($rjNo);
+            $dataDaftarPoliRJ['taskIdPelayanan']['tambahPendaftaran'] = $antrianResult['tambahPendaftaran'];
+            $dataDaftarPoliRJ['taskIdPelayanan']['taskId3'] = $waktuCheckin->format('d/m/Y H:i:s');
+            $dataDaftarPoliRJ['taskIdPelayanan']['taskId3Status'] = $antrianResult['taskId3'];
+            $dataDaftarPoliRJ['noReferensi'] = $antrian->nomorreferensi ?? '';
+            $dataDaftarPoliRJ['kunjunganId'] = (string) $antrian->jeniskunjungan;
+            $dataDaftarPoliRJ['kunjunganInternalStatus'] = $antrian->jeniskunjungan == 2 ? '1' : '0';
+            $this->updateJsonRJ($rjNo, $dataDaftarPoliRJ);
+
             return $this->sendResponse($request, "OK Peserta harap 1 jam lebih awal guna pencatatan administrasi " . $request->kodebooking, 200);
         } catch (Exception $e) {
             return $this->sendError($request, $e->getMessage(), 201);
@@ -805,8 +824,13 @@ class AntrolBPJSController extends Controller
     /**
      * Metode private untuk push data antrean ke BPJS.
      */
-    private function pushDataAntrian($myAntreanadd, $rjNo, $kodebooking, $waktu)
+    /**
+     * @return array{tambahPendaftaran: int|string, taskId3: int|string}
+     */
+    private function pushDataAntrian($myAntreanadd, $rjNo, $kodebooking, $waktu): array
     {
+        $tambahCode = '';
+
         $cekAntrianBPJS = DB::table('rstxn_rjhdrs')
             ->select('push_antrian_bpjs_status', 'push_antrian_bpjs_json')
             ->where('rj_no', $rjNo)
@@ -814,25 +838,35 @@ class AntrolBPJSController extends Controller
 
         $statusBPJS = $cekAntrianBPJS->push_antrian_bpjs_status ?? "";
         if ($statusBPJS == 200 || $statusBPJS == 208) {
-            // Data sudah diproses
+            $tambahCode = (int) $statusBPJS;
         } else {
+            // Push tambah_antrean ke BPJS
+            $response = $this->tambah_antrean($myAntreanadd)->getOriginalContent();
+            $tambahCode = $response['metadata']['code'] ?? '';
+
             DB::table('rstxn_rjhdrs')
                 ->where('rj_no', $rjNo)
                 ->update([
-                    'push_antrian_bpjs_status' => 200,
-                    'push_antrian_bpjs_json'   => '{}'
+                    'push_antrian_bpjs_status' => $tambahCode,
+                    'push_antrian_bpjs_json'   => json_encode($myAntreanadd, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
                 ]);
         }
 
-        $this->pushDataTaskId($kodebooking, 3, $waktu);
+        $taskId3Code = $this->pushDataTaskId($kodebooking, 3, $waktu);
+
+        return [
+            'tambahPendaftaran' => $tambahCode,
+            'taskId3' => $taskId3Code,
+        ];
     }
 
     /**
      * Metode private untuk update task ID.
      */
-    private function pushDataTaskId($noBooking, $taskId, $waktu): void
+    private function pushDataTaskId($noBooking, $taskId, $waktu): int|string
     {
-        $this->update_antrean($noBooking, $taskId, $waktu, "")->getOriginalContent();
+        $response = $this->update_antrean($noBooking, $taskId, $waktu, "")->getOriginalContent();
+        return $response['metadata']['code'] ?? '';
     }
 
     /**
