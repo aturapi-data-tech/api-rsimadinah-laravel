@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Validator;
@@ -302,74 +303,79 @@ class AntrolBPJSController extends Controller
             return $this->sendError($request, "Quota Poli " . $poli->poli_desc . " Dokter " . $doctor->dr_name . " tanggal " . $request->tanggalperiksa . " tidak tersedia", 201);
         }
 
-        // Hitung nomor antrian
-        $noUrutAntrian = DB::table('rstxn_rjhdrs')
-            ->where('dr_id', $cekQuota->dr_id)
-            ->whereRaw("to_char(rj_date, 'ddmmyyyy') = ?", [
-                Carbon::createFromFormat('Y-m-d', $request->tanggalperiksa, config('app.timezone'))->format('dmY')
-            ])
-            ->where('klaim_id', '!=', 'KR')
-            ->count();
-
-        // Hanya booking yang belum checkin (Checkin sudah masuk rstxn_rjhdrs, Batal tidak dihitung)
-        $noUrutAntrianBooking = DB::table('referensi_mobilejkn_bpjs')
-            ->where('kodedokter', $request->kodedokter)
-            ->where('tanggalperiksa', $request->tanggalperiksa)
-            ->where('status', 'Belum')
-            ->count();
-        $noAntrian = $noUrutAntrian + $noUrutAntrianBooking + 1;
-
-        $tanggalperiksaFull = $request->tanggalperiksa . ' ' . $jammulai . ':00';
-        $jadwalEstimasiTimestamp = Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksaFull, config('app.timezone'))
-            ->addMinutes(10 * ($noAntrian + 1))
-            ->timestamp * 1000;
-
         $noBooking = Carbon::now(config('app.timezone'))->format('YmdHis') . 'JKN';
+        $lockKey = "lock:antrian:{$cekQuota->dr_id}:" . Carbon::parse($request->tanggalperiksa)->format('Ymd');
 
         try {
-            DB::table('referensi_mobilejkn_bpjs')->insert([
-                "nobooking"         => $noBooking,
-                "no_rawat"          => $noBooking,
-                "nomorkartu"        => $request->nomorkartu,
-                "nik"               => $request->nik,
-                "nohp"              => $request->nohp,
-                "kodepoli"          => $request->kodepoli,
-                "pasienbaru"        => 0,
-                "norm"              => strtoupper($request->norm),
-                "tanggalperiksa"    => $request->tanggalperiksa,
-                "kodedokter"        => $request->kodedokter,
-                "jampraktek"        => $request->jampraktek,
-                "jeniskunjungan"    => $request->jeniskunjungan,
-                "nomorreferensi"    => $request->nomorreferensi ?? null,
-                "nomorantrean"      => $request->kodepoli . '-' . $noAntrian,
-                "angkaantrean"      => $noAntrian,
-                "estimasidilayani"  => $jadwalEstimasiTimestamp,
-                "sisakuotajkn"      => $cekQuota->kuota - $cekDaftar->count(),
-                "kuotajkn"          => $cekQuota->kuota,
-                "sisakuotanonjkn"   => $cekQuota->kuota - $cekDaftar->count(),
-                "kuotanonjkn"       => $cekQuota->kuota,
-                "status"            => "Belum",
-                "validasi"          => "",
-                "statuskirim"       => "Belum",
-                "keterangan_batal"  => "",
-                "tanggalbooking"    => Carbon::now(config('app.timezone'))->format('Y-m-d H:i:s'),
-                "daftardariapp"     => "JKNMobileAPP",
-            ]);
+            $response = Cache::lock($lockKey, 15)->block(5, function () use ($request, $cekQuota, $cekDaftar, $noBooking, $jammulai) {
+                return DB::transaction(function () use ($request, $cekQuota, $cekDaftar, $noBooking, $jammulai) {
+                    // Hitung nomor antrian di dalam lock (cegah race condition)
+                    $maxAntrianRjhdrs = (int) DB::table('rstxn_rjhdrs')
+                        ->where('dr_id', $cekQuota->dr_id)
+                        ->whereRaw("to_char(rj_date, 'ddmmyyyy') = ?", [
+                            Carbon::createFromFormat('Y-m-d', $request->tanggalperiksa, config('app.timezone'))->format('dmY')
+                        ])
+                        ->where('klaim_id', '!=', 'KR')
+                        ->max('no_antrian');
 
-            $response = [
-                "nomorantrean"     => $request->kodepoli . '-' . $noAntrian,
-                "angkaantrean"     => $noAntrian,
-                "kodebooking"      => $noBooking,
-                "norm"             => $request->norm,
-                "namapoli"         => $cekQuota->poli_desc,
-                "namadokter"       => $cekQuota->dr_name,
-                "estimasidilayani" => $jadwalEstimasiTimestamp,
-                "sisakuotajkn"     => $cekQuota->kuota - $cekDaftar->count(),
-                "kuotajkn"         => $cekQuota->kuota,
-                "sisakuotanonjkn"  => $cekQuota->kuota - $cekDaftar->count(),
-                "kuotanonjkn"      => $cekQuota->kuota,
-                "keterangan"       => 'Peserta harap 60 menit lebih awal guna pencatatan administrasi',
-            ];
+                    $maxAntrianBooking = (int) DB::table('referensi_mobilejkn_bpjs')
+                        ->where('kodedokter', $request->kodedokter)
+                        ->where('tanggalperiksa', $request->tanggalperiksa)
+                        ->where('status', 'Belum')
+                        ->max('angkaantrean');
+
+                    $noAntrian = max($maxAntrianRjhdrs, $maxAntrianBooking) + 1;
+
+                    $tanggalperiksaFull = $request->tanggalperiksa . ' ' . $jammulai . ':00';
+                    $jadwalEstimasiTimestamp = Carbon::createFromFormat('Y-m-d H:i:s', $tanggalperiksaFull, config('app.timezone'))
+                        ->addMinutes(10 * ($noAntrian + 1))
+                        ->timestamp * 1000;
+
+                    DB::table('referensi_mobilejkn_bpjs')->insert([
+                        "nobooking"         => $noBooking,
+                        "no_rawat"          => $noBooking,
+                        "nomorkartu"        => $request->nomorkartu,
+                        "nik"               => $request->nik,
+                        "nohp"              => $request->nohp,
+                        "kodepoli"          => $request->kodepoli,
+                        "pasienbaru"        => 0,
+                        "norm"              => strtoupper($request->norm),
+                        "tanggalperiksa"    => $request->tanggalperiksa,
+                        "kodedokter"        => $request->kodedokter,
+                        "jampraktek"        => $request->jampraktek,
+                        "jeniskunjungan"    => $request->jeniskunjungan,
+                        "nomorreferensi"    => $request->nomorreferensi ?? null,
+                        "nomorantrean"      => $request->kodepoli . '-' . $noAntrian,
+                        "angkaantrean"      => $noAntrian,
+                        "estimasidilayani"  => $jadwalEstimasiTimestamp,
+                        "sisakuotajkn"      => $cekQuota->kuota - $cekDaftar->count(),
+                        "kuotajkn"          => $cekQuota->kuota,
+                        "sisakuotanonjkn"   => $cekQuota->kuota - $cekDaftar->count(),
+                        "kuotanonjkn"       => $cekQuota->kuota,
+                        "status"            => "Belum",
+                        "validasi"          => "",
+                        "statuskirim"       => "Belum",
+                        "keterangan_batal"  => "",
+                        "tanggalbooking"    => Carbon::now(config('app.timezone'))->format('Y-m-d H:i:s'),
+                        "daftardariapp"     => "JKNMobileAPP",
+                    ]);
+
+                    return [
+                        "nomorantrean"     => $request->kodepoli . '-' . $noAntrian,
+                        "angkaantrean"     => $noAntrian,
+                        "kodebooking"      => $noBooking,
+                        "norm"             => $request->norm,
+                        "namapoli"         => $cekQuota->poli_desc,
+                        "namadokter"       => $cekQuota->dr_name,
+                        "estimasidilayani" => $jadwalEstimasiTimestamp,
+                        "sisakuotajkn"     => $cekQuota->kuota - $cekDaftar->count(),
+                        "kuotajkn"         => $cekQuota->kuota,
+                        "sisakuotanonjkn"  => $cekQuota->kuota - $cekDaftar->count(),
+                        "kuotanonjkn"      => $cekQuota->kuota,
+                        "keterangan"       => 'Peserta harap 60 menit lebih awal guna pencatatan administrasi',
+                    ];
+                });
+            });
 
             return $this->sendResponse($request, $response, 200);
         } catch (Exception $e) {
