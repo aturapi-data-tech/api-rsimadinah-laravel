@@ -482,9 +482,8 @@ class AntrolBPJSController extends Controller
             ->where('rj_status', '!=', 'F')
             ->where(DB::raw("to_char(rj_date,'yyyy-mm-dd')"), '=', $antrian->tanggalperiksa)
             ->get();
-        if (($cekQuota->kuota - $cekDaftar->count()) <= 0) {
-            return $this->sendError($request, "Quota Pelayanan Poli " . $cekQuota->poli_desc . " Dokter " . $cekQuota->dr_name . " pada hari " . $hari . " Penuh.", 201);
-        }
+        // Skip quota check: pasien sudah lolos validasi quota saat booking,
+        // jadi tidak boleh ditolak saat checkin meskipun slot terisi oleh pendaftaran admin/loket.
 
         try {
             $rjNo = DB::table('rstxn_rjhdrs')
