@@ -296,7 +296,7 @@ class AntrolBPJSController extends Controller
             ->where('kd_poli_bpjs', $request->kodepoli)
             ->where('kd_dr_bpjs', $request->kodedokter)
             ->where('rj_status', '!=', 'F')
-            ->where(DB::raw("to_char(rj_date,'dd/mm/yyyy')"), '=', $request->tanggalperiksa)
+            ->where(DB::raw("to_char(rj_date,'yyyy-mm-dd')"), '=', $request->tanggalperiksa)
             ->get();
         if (($cekQuota->kuota - $cekDaftar->count()) <= 0) {
             return $this->sendError($request, "Quota Poli " . $poli->poli_desc . " Dokter " . $doctor->dr_name . " tanggal " . $request->tanggalperiksa . " tidak tersedia", 201);
@@ -474,7 +474,7 @@ class AntrolBPJSController extends Controller
             ->where('kd_poli_bpjs', $antrian->kodepoli)
             ->where('kd_dr_bpjs', $antrian->kodedokter)
             ->where('rj_status', '!=', 'F')
-            ->where(DB::raw("to_char(rj_date,'dd/mm/yyyy')"), '=', $antrian->tanggalperiksa)
+            ->where(DB::raw("to_char(rj_date,'yyyy-mm-dd')"), '=', $antrian->tanggalperiksa)
             ->get();
         if (($cekQuota->kuota - $cekDaftar->count()) <= 0) {
             return $this->sendError($request, "Quota Pelayanan Poli " . $cekQuota->poli_desc . " Dokter " . $cekQuota->dr_name . " pada hari " . $hari . " Penuh.", 201);
@@ -541,14 +541,14 @@ class AntrolBPJSController extends Controller
                 "kodepoli"      => $antrian->kodepoli,
                 "namapoli"      => $cekQuota->poli_desc,
                 "pasienbaru"    => 0,
-                "norm"          => $antrian->kodepoli,
+                "norm"          => $antrian->norm,
                 "tanggalperiksa" => $antrian->tanggalperiksa,
                 "kodedokter"    => $antrian->kodedokter,
                 "namadokter"    => $cekQuota->dr_name,
-                "jampraktek"    => $jammulai,
+                "jampraktek"    => $jammulai . '-' . substr($antrian->jampraktek, 6, 5),
                 "jeniskunjungan" => $antrian->jeniskunjungan,
                 "nomorreferensi" => $antrian->nomorreferensi,
-                "nomorantrean"  => $noAntrian,
+                "nomorantrean"  => $antrian->kodepoli . '-' . $noAntrian,
                 "angkaantrean"  => $noAntrian,
                 "estimasidilayani" => $antrian->estimasidilayani,
                 "sisakuotajkn"     => $cekQuota->kuota - $noAntrian,
@@ -674,7 +674,7 @@ class AntrolBPJSController extends Controller
             ->where('kd_poli_bpjs', $request->kodepoli)
             ->where('kd_dr_bpjs', $request->kodedokter)
             ->where('rj_status', '!=', 'F')
-            ->where(DB::raw("to_char(rj_date,'dd/mm/yyyy')"), '=', $request->tanggalperiksa)
+            ->where(DB::raw("to_char(rj_date,'yyyy-mm-dd')"), '=', $request->tanggalperiksa)
             ->get();
 
         if (!$cekQuota || !$cekQuota->kuota || ($cekQuota->kuota - $cekDaftar->count()) == 0) {
@@ -711,8 +711,8 @@ class AntrolBPJSController extends Controller
         $waktuMasukPoli = $queryPasienDilayani->waktu_masuk_poli ?? null;
 
         $response = [
-            "namapoli"         => $cekQuota->dr_name,
-            "namadokter"       => $cekQuota->poli_desc,
+            "namapoli"         => $cekQuota->poli_desc,
+            "namadokter"       => $cekQuota->dr_name,
             "totalantrean"     => $cekDaftar->count(),
             "sisaantrean"      => $cekDaftar->count() - $noAntrian,
             "antreanpanggil"   => $waktuMasukPoli,
