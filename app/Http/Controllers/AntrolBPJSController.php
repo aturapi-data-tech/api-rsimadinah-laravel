@@ -14,6 +14,36 @@ use App\Http\Traits\Txn\Rj\EmrRJTrait;
 use App\Models\User;
 use Exception;
 
+/**
+ * Controller untuk integrasi Antrol (Antrean Online) BPJS.
+ *
+ * Alur utama pendaftaran JKN Mobile:
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ 1. token()              → Autentikasi & generate JWT token             │
+ * │ 2. ambilantrean()       → Booking antrian (validasi pasien, quota,     │
+ * │                           duplikasi, lalu simpan ke referensi_mobilejkn)│
+ * │ 3. checkinantrean()     → Checkin (buat record RJ di rstxn_rjhdrs,    │
+ * │                           push antrean & task ID 3 ke BPJS)           │
+ * │ 4. batalantrean()       → Pembatalan antrian (sebelum checkin)        │
+ * │ 5. statusantrean()      → Cek status & sisa quota poli/dokter        │
+ * │ 6. sisaantrean()        → Cek sisa antrean per kodebooking            │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * Endpoint tambahan:
+ * - jadwaloperasirs()       → Jadwal operasi RS berdasarkan rentang tanggal
+ * - jadwaloperasipasien()   → Jadwal operasi per peserta BPJS
+ * - pasienbaru()            → Placeholder (belum didukung, harus daftar offline)
+ *
+ * Tabel utama:
+ * - referensi_mobilejkn_bpjs → Data booking JKN Mobile (status: Belum/Checkin/Batal)
+ * - rstxn_rjhdrs             → Header transaksi rawat jalan (dibuat saat checkin)
+ * - rsview_rjkasir            → View gabungan RJ untuk cek quota & status pasien
+ * - scview_scpolis            → View jadwal & kuota dokter per poli per hari
+ * - rsmst_pasiens             → Master data pasien
+ * - rsmst_doctors             → Master data dokter
+ * - rsmst_polis               → Master data poli
+ * - booking_operasi           → Data jadwal operasi
+ */
 class AntrolBPJSController extends Controller
 {
     use TraitJWTRsiMadinah, AntrianTrait, EmrRJTrait;
@@ -24,6 +54,13 @@ class AntrolBPJSController extends Controller
 
     /**
      * Metode autentikasi terpusat.
+     *
+     * Proses:
+     * 1. Ambil x-username dan x-token dari header request
+     * 2. Validasi keberadaan credentials (username & token)
+     * 3. Cari user berdasarkan username di database
+     * 4. Verifikasi token JWT melalui method cektoken()
+     * 5. Return user object jika valid, atau JsonResponse error jika gagal
      *
      * @param Request $request
      * @return mixed (User atau JsonResponse error)
@@ -51,6 +88,12 @@ class AntrolBPJSController extends Controller
 
     /**
      * Endpoint untuk mendapatkan token.
+     *
+     * Proses:
+     * 1. Ambil x-username dan x-password dari header request
+     * 2. Autentikasi credentials via Auth::attempt()
+     * 3. Jika berhasil, generate JWT token via createToken()
+     * 4. Return token dalam response
      */
     public function token(Request $request)
     {
@@ -69,6 +112,16 @@ class AntrolBPJSController extends Controller
 
     /**
      * Endpoint jadwal operasi RS.
+     *
+     * Proses:
+     * 1. Autentikasi user via header x-username & x-token
+     * 2. Validasi input: tanggalawal & tanggalakhir (format Y-m-d, akhir > awal)
+     * 3. Query tabel booking_operasi JOIN rsmst_doctors & rsmst_polis
+     *    untuk mendapatkan jadwal operasi dalam rentang tanggal
+     * 4. Mapping hasil query ke format response BPJS:
+     *    kodebooking, tanggaloperasi, jenistindakan, kodepoli, namapoli,
+     *    kodedokter, terlaksana (0=Menunggu, 1=Selesai), nopeserta
+     * 5. Return list jadwal operasi
      */
     public function jadwaloperasirs(Request $request)
     {
@@ -138,6 +191,14 @@ class AntrolBPJSController extends Controller
 
     /**
      * Endpoint jadwal operasi pasien.
+     *
+     * Proses:
+     * 1. Autentikasi user via header x-username & x-token
+     * 2. Validasi input: nopeserta (13 digit)
+     * 3. Query tabel booking_operasi JOIN rsmst_doctors & rsmst_polis
+     *    berdasarkan nomor peserta BPJS
+     * 4. Mapping hasil query ke format response BPJS (sama seperti jadwaloperasirs)
+     * 5. Return list jadwal operasi milik peserta tersebut
      */
     public function jadwaloperasipasien(Request $request)
     {
@@ -187,7 +248,30 @@ class AntrolBPJSController extends Controller
         return $this->sendResponse($request, ["list" => $jadwals], 200);
     }
 
-    // JKN///////////////////////////////
+    /**
+     * Endpoint ambil antrean (booking) dari JKN Mobile.
+     *
+     * Proses:
+     * 1. Autentikasi user via header x-username & x-token
+     * 2. Validasi pasien:
+     *    - Cek No Kartu BPJS di rsmst_pasiens (harus sudah terdaftar, bukan pasien baru)
+     *    - Cocokkan NIK BPJS dengan NIK di RS
+     *    - Sinkronisasi norm dengan reg_no pasien
+     * 3. Validasi input: nomorkartu(13digit), nik(16digit), nohp, kodepoli, norm,
+     *    tanggalperiksa, kodedokter, jampraktek, jeniskunjungan, nomorreferensi(jika bukan kontrol)
+     * 4. Validasi tanggal periksa: tidak boleh lewat & maksimal 35 hari ke depan
+     * 5. Cek duplikasi: tidak boleh ada antrian aktif dengan NIK sama di tanggal yang sama
+     * 6. Cek keberadaan dokter (rsmst_doctors) dan poli (rsmst_polis) berdasarkan kode BPJS
+     * 7. Cek quota: query scview_scpolis untuk kuota & jadwal, lalu hitung sisa quota
+     *    dari rsview_rjkasir (pasien terdaftar yang belum batal). Tolak jika quota habis.
+     * 8. Generate nomor booking: format YmdHis + 'JKN'
+     * 9. Gunakan Cache::lock per dokter/tanggal untuk mencegah race condition:
+     *    - Hitung nomor antrian MAX dari rstxn_rjhdrs dan referensi_mobilejkn_bpjs
+     *    - Hitung estimasi waktu dilayani (10 menit per antrian)
+     *    - Insert data booking ke referensi_mobilejkn_bpjs (status='Belum')
+     * 10. Return: nomorantrean, angkaantrean, kodebooking, norm, namapoli, namadokter,
+     *     estimasidilayani, sisa quota
+     */
     public function ambilantrean(Request $request)
     {
         $auth = $this->authenticate($request);
@@ -386,6 +470,33 @@ class AntrolBPJSController extends Controller
 
     /**
      * Endpoint checkin antrean.
+     *
+     * Proses:
+     * 1. Autentikasi user via header x-username & x-token
+     * 2. Validasi input: kodebooking & waktu (timestamp milidetik)
+     * 3. Cari data antrian di referensi_mobilejkn_bpjs berdasarkan nobooking
+     * 4. Validasi status antrian:
+     *    - Tanggal periksa harus hari ini
+     *    - Status tidak boleh 'Batal'
+     *    - Status tidak boleh sudah 'Checkin' (duplikasi)
+     * 5. Validasi waktu checkin:
+     *    - Parse jampraktek (format "HH:mm-HH:mm") untuk batas waktu
+     *    - Konversi timestamp waktu checkin ke Carbon
+     *    - Checkin diizinkan: 1 jam sebelum mulai s/d waktu selesai pelayanan
+     * 6. Cek jadwal dokter-poli di scview_scpolis (memastikan jadwal masih berlaku)
+     *    Catatan: Quota TIDAK dicek ulang karena sudah divalidasi saat booking.
+     * 7. Buat record rawat jalan di rstxn_rjhdrs:
+     *    - Generate rj_no baru (MAX+1)
+     *    - Pakai angkaantrean dari booking (konsisten)
+     *    - rj_date = waktu realtime checkin (bukan jadwal dokter)
+     *    - Tentukan shift dari rstxn_shiftctls berdasarkan jam checkin
+     *    - Set status awal: txn_status='A', rj_status='A', erm_status='A', klaim_id='JM'
+     * 8. Update status antrian di referensi_mobilejkn_bpjs menjadi 'Checkin'
+     * 9. Push data ke BPJS Antrol:
+     *    - Tambah antrean ke BPJS (tambah_antrean)
+     *    - Update task ID 3 (checkin) dengan waktu realtime
+     * 10. Simpan data daftar poli RJ (datadaftarpolirj_json):
+     *     - Catat hasil push BPJS, waktu checkin task 3, referensi, dan jenis kunjungan
      */
     public function checkinantrean(Request $request)
     {
@@ -587,6 +698,15 @@ class AntrolBPJSController extends Controller
 
     /**
      * Endpoint batal antrean.
+     *
+     * Proses:
+     * 1. Autentikasi user via header x-username & x-token
+     * 2. Validasi input: kodebooking & keterangan (alasan pembatalan)
+     * 3. Cari data antrian di referensi_mobilejkn_bpjs berdasarkan nobooking
+     * 4. Validasi status antrian:
+     *    - Tidak boleh sudah 'Batal' (duplikasi pembatalan)
+     *    - Tidak boleh sudah 'Checkin' (sudah diproses, tidak bisa dibatalkan)
+     * 5. Update status menjadi 'Batal' dengan timestamp pembatalan di keterangan_batal
      */
     public function batalantrean(Request $request)
     {
@@ -630,6 +750,19 @@ class AntrolBPJSController extends Controller
 
     /**
      * Endpoint status antrean.
+     *
+     * Proses:
+     * 1. Autentikasi user via header x-username & x-token
+     * 2. Validasi input: kodepoli, kodedokter, tanggalperiksa, jampraktek
+     * 3. Validasi tanggal periksa: tidak boleh sudah lewat
+     * 4. Cek keberadaan dokter (rsmst_doctors) dan poli (rsmst_polis)
+     * 5. Cek quota dari scview_scpolis berdasarkan kode poli, dokter, dan hari
+     * 6. Hitung jumlah pasien terdaftar dari rsview_rjkasir (rj_status != 'F')
+     * 7. Tolak jika quota habis atau tidak tersedia
+     * 8. Cari pasien yang sedang dilayani (sudah masuk poli tapi belum ke apotek)
+     *    dari rsview_rjkasir, urut berdasarkan no_antrian ASC
+     * 9. Return: namapoli, namadokter, totalantrean, sisaantrean, antreanpanggil,
+     *    sisa quota JKN & non-JKN
      */
     public function statusantrean(Request $request)
     {
@@ -734,6 +867,18 @@ class AntrolBPJSController extends Controller
 
     /**
      * Endpoint sisa antrean.
+     *
+     * Proses:
+     * 1. Autentikasi user via header x-username & x-token
+     * 2. Validasi input: kodebooking
+     * 3. Cari data antrian di referensi_mobilejkn_bpjs berdasarkan nobooking
+     * 4. Validasi status antrian:
+     *    - Tidak boleh 'Batal'
+     *    - Harus sudah 'Checkin' (belum checkin = belum terdaftar di rawat jalan)
+     * 5. Query data pasien RJ dari rsview_rjkasir berdasarkan nobooking
+     *    untuk mendapatkan no_antrian, poli_desc, dr_name, waktu_masuk_poli
+     * 6. Return: nomorantrean, namapoli, namadokter, sisaantrean, antreanpanggil,
+     *    waktutunggu
      */
     public function sisaantrean(Request $request)
     {
@@ -804,6 +949,12 @@ class AntrolBPJSController extends Controller
 
     /**
      * Endpoint untuk pasien baru.
+     *
+     * Proses:
+     * 1. Autentikasi user via header x-username & x-token
+     * 2. Validasi input: kodebooking
+     * 3. Selalu return error karena RS belum mendukung pendaftaran pasien baru via JKN Mobile.
+     *    Pasien baru harus daftar offline terlebih dahulu untuk mendapatkan No RM.
      */
     public function pasienbaru(Request $request)
     {
@@ -828,8 +979,14 @@ class AntrolBPJSController extends Controller
 
     /**
      * Metode private untuk push data antrean ke BPJS.
-     */
-    /**
+     *
+     * Proses:
+     * 1. Cek apakah antrean sudah pernah di-push ke BPJS (status 200/208 di rstxn_rjhdrs)
+     * 2. Jika belum, push data antrean ke BPJS via tambah_antrean()
+     *    dan simpan status & JSON response ke rstxn_rjhdrs
+     * 3. Push task ID 3 (waktu checkin) ke BPJS via update_antrean()
+     * 4. Return kode status tambahPendaftaran dan taskId3
+     *
      * @return array{tambahPendaftaran: int|string, taskId3: int|string}
      */
     private function pushDataAntrian($myAntreanadd, $rjNo, $kodebooking, $waktu): array
@@ -866,7 +1023,21 @@ class AntrolBPJSController extends Controller
     }
 
     /**
-     * Metode private untuk update task ID.
+     * Metode private untuk update task ID ke BPJS.
+     *
+     * Proses:
+     * 1. Panggil update_antrean() dari AntrianTrait dengan parameter:
+     *    noBooking, taskId (1-7), waktu (timestamp milidetik)
+     * 2. Return kode response dari BPJS
+     *
+     * Task ID BPJS:
+     * - 1: Mulai pendaftaran (regDate)
+     * - 2: Selesai pendaftaran (regDateStore)
+     * - 3: Checkin / masuk poli
+     * - 4: Selesai pelayanan poli
+     * - 5: Masuk farmasi/apotek
+     * - 6: Selesai farmasi/apotek (obat selesai)
+     * - 7: Selesai pelayanan (pasien pulang)
      */
     private function pushDataTaskId($noBooking, $taskId, $waktu): int|string
     {
@@ -876,6 +1047,7 @@ class AntrolBPJSController extends Controller
 
     /**
      * Metode debugging (tidak untuk produksi).
+     * Digunakan untuk testing flow checkin secara manual tanpa proses insert RJ.
      */
     public function x(Request $request)
     {
