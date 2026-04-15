@@ -405,7 +405,6 @@ class AntrolBPJSController extends Controller
                     $maxAntrianBooking = (int) DB::table('referensi_mobilejkn_bpjs')
                         ->where('kodedokter', $request->kodedokter)
                         ->where('tanggalperiksa', $request->tanggalperiksa)
-                        ->where('status', 'Belum')
                         ->max('angkaantrean');
 
                     $noAntrian = max($maxAntrianRjhdrs, $maxAntrianBooking) + 1;
