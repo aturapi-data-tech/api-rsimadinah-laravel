@@ -330,18 +330,15 @@ class AntrolBPJSController extends Controller
         if (Carbon::parse($request->tanggalperiksa)->endOfDay()->isPast()) {
             return $this->sendError($request, "Tanggal periksa sudah terlewat", 201);
         }
-        if (Carbon::parse($request->tanggalperiksa) > Carbon::now(config('app.timezone'))->addDay(35)) {
-            return $this->sendError($request, "Antrian hanya dapat dibuat untuk 35 hari ke kedepan", 201);
-        }
 
-        // Cek duplikasi antrian
-        $antrian_nik = DB::table('referensi_mobilejkn_bpjs')
-            ->where('tanggalperiksa', $request->tanggalperiksa)
-            ->where('nik', $request->nik)
-            ->where('status', '!=', 'Batal')
-            ->first();
-        if ($antrian_nik) {
-            return $this->sendError($request, "Terdapat Antrian (" . $antrian_nik->nobooking . ") dengan nomor NIK yang sama pada tanggal tersebut yang belum selesai. Silahkan batalkan terlebih dahulu jika ingin mendaftarkan lagi.", 201);
+        // ── Setup batas hari pendaftaran ──────────────────────────────────
+        // Sementara dibatasi 2 hari ke depan untuk meminimalisir duplikasi
+        // data selama API belum sepenuhnya aman dari race condition.
+        // Jika API sudah OK, ubah kembali ke 35 hari:
+        // $batasHari = 35;
+        $batasHari = 2;
+        if (Carbon::parse($request->tanggalperiksa) > Carbon::now(config('app.timezone'))->addDays($batasHari)) {
+            return $this->sendError($request, "Antrian hanya dapat dibuat untuk {$batasHari} hari ke depan", 201);
         }
 
         // Cek dokter dan poli
@@ -393,6 +390,26 @@ class AntrolBPJSController extends Controller
         try {
             $response = Cache::lock($lockKey, 15)->block(5, function () use ($request, $cekQuota, $cekDaftar, $noBooking, $jammulai) {
                 return DB::transaction(function () use ($request, $cekQuota, $cekDaftar, $noBooking, $jammulai) {
+
+                    // ── Cek duplikasi di dalam lock (cegah race condition) ──
+                    // Cek 1: Pasien dengan NIK sama sudah daftar di tanggal yang sama?
+                    $antrian_nik = DB::table('referensi_mobilejkn_bpjs')
+                        ->where('tanggalperiksa', $request->tanggalperiksa)
+                        ->where('nik', $request->nik)
+                        ->where('status', '!=', 'Batal')
+                        ->first();
+                    if ($antrian_nik) {
+                        throw new Exception("Terdapat Antrian (" . $antrian_nik->nobooking . ") dengan nomor NIK yang sama pada tanggal tersebut yang belum selesai. Silahkan batalkan terlebih dahulu jika ingin mendaftarkan lagi.");
+                    }
+
+                    // Cek 2: nobooking sudah ada? (idempotency — cegah insert ganda)
+                    $existingBooking = DB::table('referensi_mobilejkn_bpjs')
+                        ->where('nobooking', $noBooking)
+                        ->exists();
+                    if ($existingBooking) {
+                        throw new Exception("Booking " . $noBooking . " sudah terdaftar. Silahkan coba beberapa saat lagi.");
+                    }
+
                     // Hitung nomor antrian di dalam lock (cegah race condition)
                     $maxAntrianRjhdrs = (int) DB::table('rstxn_rjhdrs')
                         ->where('dr_id', $cekQuota->dr_id)
