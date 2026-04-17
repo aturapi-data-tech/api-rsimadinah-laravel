@@ -362,7 +362,7 @@ class AntrolBPJSController extends Controller
 
         // Cek quota dan jadwal dokter-poli
         $cekQuota = DB::table('scview_scpolis')
-            ->select('kuota', 'mulai_praktek', 'selesai_praktek', 'dr_id', 'poli_desc', 'dr_name')
+            ->select('kuota', 'mulai_praktek', 'selesai_praktek', 'dr_id', 'poli_id', 'poli_desc', 'dr_name')
             ->where('kd_poli_bpjs', $request->kodepoli)
             ->where('kd_dr_bpjs', $request->kodedokter)
             ->where('day_desc', $hari)
