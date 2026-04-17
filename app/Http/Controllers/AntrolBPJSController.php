@@ -411,8 +411,11 @@ class AntrolBPJSController extends Controller
                     }
 
                     // Hitung nomor antrian di dalam lock (cegah race condition)
+                    // Note: referensi_mobilejkn_bpjs.angkaantrean bertipe VARCHAR2,
+                    // jadi pakai to_number agar max() numeric (bukan lex sort).
                     $maxAntrianRjhdrs = (int) DB::table('rstxn_rjhdrs')
                         ->where('dr_id', $cekQuota->dr_id)
+                        ->where('poli_id', $cekQuota->poli_id)
                         ->whereRaw("to_char(rj_date, 'ddmmyyyy') = ?", [
                             Carbon::createFromFormat('Y-m-d', $request->tanggalperiksa, config('app.timezone'))->format('dmY')
                         ])
@@ -422,7 +425,8 @@ class AntrolBPJSController extends Controller
                     $maxAntrianBooking = (int) DB::table('referensi_mobilejkn_bpjs')
                         ->where('kodedokter', $request->kodedokter)
                         ->where('tanggalperiksa', $request->tanggalperiksa)
-                        ->max('angkaantrean');
+                        ->selectRaw("nvl(max(to_number(angkaantrean)), 0) as maxq")
+                        ->value('maxq');
 
                     $noAntrian = max($maxAntrianRjhdrs, $maxAntrianBooking) + 1;
 
