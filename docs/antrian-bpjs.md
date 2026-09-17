@@ -75,7 +75,7 @@ Source: `AntrolBPJSController.php::ambilantrean()`
    - **Toggle `ANTRIAN_DISALLOW_SAMEDAY`** (default `true`) → tolak booking utk hari ini (wajib H+1).
    - `> Carbon::now()->addDays(35)` → tolak (max 35 hari ke depan).
 6. **Cek master** — `rsmst_doctors` by `kd_dr_bpjs`, `rsmst_polis` by `kd_poli_bpjs`.
-7. **Cek jadwal & kuota** — `scview_scpolis` cek dokter/poli/hari/jam, lalu hitung pasien terdaftar di `rsview_rjkasir` (yang `rj_status != 'F'`).
+7. **Cek jadwal & kuota** — `scview_scpolis` cek dokter/poli/hari/jam, lalu hitung slot terpakai via `hitungKuotaTerisi()`: pendaftaran di `rsview_rjkasir` (`rj_status != 'F'`) + booking `referensi_mobilejkn_bpjs` yang belum batal dan belum punya record `rstxn_rjhdrs`. Dicek ulang di dalam lock.
 8. **Generate booking** — `YmdHis + 'JKN'` (mis. `20260520143000JKN`).
 9. **Cache::lock per dokter/tanggal (15 detik, retry 5 detik)** — cegah race condition:
    - Cek duplikasi NIK aktif di tanggal sama.
@@ -201,7 +201,7 @@ Beberapa field punya catatan khusus:
 
 - **Tanggal:** Mobile JKN pakai timezone UTC tapi `tanggalperiksa` selalu local-date Indonesia. Wajib `Carbon::now(config('app.timezone'))` saat banding.
 - **Race condition:** SELALU pakai `Cache::lock` per `dr_id+tanggal` saat insert booking (komponen `noAntrian` rentan dobel).
-- **Quota:** quota di `scview_scpolis` adalah master, sisa = `kuota - count(rsview_rjkasir where rj_status != 'F')`.
+- **Quota:** quota di `scview_scpolis` adalah master, sisa = `kuota - (count(rsview_rjkasir where rj_status != 'F') + count(booking JKN belum batal & belum checkin))`.
 - **Pasien baru:** kalau `nokartu_bpjs` belum ada di `rsmst_pasiens`, JANGAN auto-insert dari Mobile JKN — tolak dan suruh datang offline (kebijakan RS).
 - **Sinkron norm:** `request->norm` boleh kosong; backend isi otomatis dari `rsmst_pasiens.reg_no`.
 
