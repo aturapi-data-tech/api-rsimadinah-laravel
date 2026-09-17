@@ -263,7 +263,8 @@ class AntrolBPJSController extends Controller
      * 5. Cek duplikasi: tidak boleh ada antrian aktif dengan NIK sama di tanggal yang sama
      * 6. Cek keberadaan dokter (rsmst_doctors) dan poli (rsmst_polis) berdasarkan kode BPJS
      * 7. Cek quota: query scview_scpolis untuk kuota & jadwal, lalu hitung sisa quota
-     *    dari rsview_rjkasir (pasien terdaftar yang belum batal). Tolak jika quota habis.
+     *    dari hitungKuotaTerisi() (pendaftaran RJ + booking JKN yang belum checkin/batal).
+     *    Tolak jika quota habis. Dicek ulang di dalam lock agar tidak over-booking.
      * 8. Generate nomor booking: format YmdHis + 'JKN'
      * 9. Gunakan Cache::lock per dokter/tanggal untuk mencegah race condition:
      *    - Hitung nomor antrian MAX dari rstxn_rjhdrs dan referensi_mobilejkn_bpjs
@@ -377,23 +378,26 @@ class AntrolBPJSController extends Controller
             return $this->sendError($request, "Pendaftaran ke Poli " . $poli->poli_desc . " tanggal " . $request->tanggalperiksa . " tidak tersedia", 201);
         }
 
-        $cekDaftar = DB::table('rsview_rjkasir')
-            ->select('rj_no')
-            ->where('kd_poli_bpjs', $request->kodepoli)
-            ->where('kd_dr_bpjs', $request->kodedokter)
-            ->where('rj_status', '!=', 'F')
-            ->where(DB::raw("to_char(rj_date,'yyyy-mm-dd')"), '=', $request->tanggalperiksa)
-            ->get();
-        if (($cekQuota->kuota - $cekDaftar->count()) <= 0) {
-            return $this->sendError($request, "Quota Poli " . $poli->poli_desc . " Dokter " . $doctor->dr_name . " tanggal " . $request->tanggalperiksa . " tidak tersedia", 201);
+        // Pre-check cepat (tanpa lock) — dicek ulang di dalam lock
+        $pesanQuotaHabis = "Quota Poli " . $poli->poli_desc . " Dokter " . $doctor->dr_name . " tanggal " . $request->tanggalperiksa . " tidak tersedia";
+        if (($cekQuota->kuota - $this->hitungKuotaTerisi($request->kodepoli, $request->kodedokter, $request->tanggalperiksa)) <= 0) {
+            return $this->sendError($request, $pesanQuotaHabis, 201);
         }
 
         $noBooking = Carbon::now(config('app.timezone'))->format('YmdHis') . 'JKN';
         $lockKey = "lock:antrian:{$cekQuota->dr_id}:" . Carbon::parse($request->tanggalperiksa)->format('Ymd');
 
         try {
-            $response = Cache::lock($lockKey, 15)->block(5, function () use ($request, $cekQuota, $cekDaftar, $noBooking, $jammulai) {
-                return DB::transaction(function () use ($request, $cekQuota, $cekDaftar, $noBooking, $jammulai) {
+            $response = Cache::lock($lockKey, 15)->block(5, function () use ($request, $cekQuota, $noBooking, $jammulai, $pesanQuotaHabis) {
+                return DB::transaction(function () use ($request, $cekQuota, $noBooking, $jammulai, $pesanQuotaHabis) {
+
+                    // ── Cek quota di dalam lock (cegah over-booking saat request bersamaan) ──
+                    $terisi = $this->hitungKuotaTerisi($request->kodepoli, $request->kodedokter, $request->tanggalperiksa);
+                    if (($cekQuota->kuota - $terisi) <= 0) {
+                        throw new Exception($pesanQuotaHabis);
+                    }
+                    // Sisa kuota setelah booking ini tersimpan
+                    $sisaKuota = $cekQuota->kuota - ($terisi + 1);
 
                     // ── Cek duplikasi di dalam lock (cegah race condition) ──
                     // Cek 1: Pasien dengan NIK sama sudah daftar di tanggal yang sama?
@@ -456,9 +460,9 @@ class AntrolBPJSController extends Controller
                         "nomorantrean"      => $request->kodepoli . '-' . $noAntrian,
                         "angkaantrean"      => $noAntrian,
                         "estimasidilayani"  => $jadwalEstimasiTimestamp,
-                        "sisakuotajkn"      => $cekQuota->kuota - $cekDaftar->count(),
+                        "sisakuotajkn"      => $sisaKuota,
                         "kuotajkn"          => $cekQuota->kuota,
-                        "sisakuotanonjkn"   => $cekQuota->kuota - $cekDaftar->count(),
+                        "sisakuotanonjkn"   => $sisaKuota,
                         "kuotanonjkn"       => $cekQuota->kuota,
                         "status"            => "Belum",
                         "validasi"          => "",
@@ -476,9 +480,9 @@ class AntrolBPJSController extends Controller
                         "namapoli"         => $cekQuota->poli_desc,
                         "namadokter"       => $cekQuota->dr_name,
                         "estimasidilayani" => $jadwalEstimasiTimestamp,
-                        "sisakuotajkn"     => $cekQuota->kuota - $cekDaftar->count(),
+                        "sisakuotajkn"     => $sisaKuota,
                         "kuotajkn"         => $cekQuota->kuota,
-                        "sisakuotanonjkn"  => $cekQuota->kuota - $cekDaftar->count(),
+                        "sisakuotanonjkn"  => $sisaKuota,
                         "kuotanonjkn"      => $cekQuota->kuota,
                         "keterangan"       => 'Peserta harap 60 menit lebih awal guna pencatatan administrasi',
                     ];
@@ -851,7 +855,7 @@ class AntrolBPJSController extends Controller
             ->where(DB::raw("to_char(rj_date,'yyyy-mm-dd')"), '=', $request->tanggalperiksa)
             ->get();
 
-        if (!$cekQuota || !$cekQuota->kuota || ($cekQuota->kuota - $cekDaftar->count()) == 0) {
+        if (!$cekQuota || !$cekQuota->kuota || ($cekQuota->kuota - $this->hitungKuotaTerisi($request->kodepoli, $request->kodedokter, $request->tanggalperiksa)) <= 0) {
             return $this->sendError($request, "Quota tidak tersedia", 201);
         }
 
@@ -1012,6 +1016,39 @@ class AntrolBPJSController extends Controller
     /////////////////////////////
     // Push ke BPJS Antrol task ID
     /////////////////////////////
+
+    /**
+     * Hitung slot kuota yang sudah terpakai untuk poli + dokter + tanggal.
+     *
+     * Terpakai = pendaftaran RJ (rsview_rjkasir, rj_status != 'F')
+     *          + booking Mobile JKN yang belum batal DAN belum punya record di rstxn_rjhdrs.
+     *
+     * Booking yang sudah checkin sudah punya record RJ (rstxn_rjhdrs.nobooking),
+     * jadi dikecualikan agar tidak terhitung dua kali.
+     */
+    private function hitungKuotaTerisi(string $kodepoli, string $kodedokter, string $tanggalperiksa): int
+    {
+        $jumlahRJ = DB::table('rsview_rjkasir')
+            ->where('kd_poli_bpjs', $kodepoli)
+            ->where('kd_dr_bpjs', $kodedokter)
+            ->where('rj_status', '!=', 'F')
+            ->where(DB::raw("to_char(rj_date,'yyyy-mm-dd')"), '=', $tanggalperiksa)
+            ->count();
+
+        $jumlahBooking = DB::table('referensi_mobilejkn_bpjs as b')
+            ->where('b.kodepoli', $kodepoli)
+            ->where('b.kodedokter', $kodedokter)
+            ->where('b.tanggalperiksa', $tanggalperiksa)
+            ->where('b.status', '!=', 'Batal')
+            ->whereNotExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('rstxn_rjhdrs as h')
+                    ->whereColumn('h.nobooking', 'b.nobooking');
+            })
+            ->count();
+
+        return $jumlahRJ + $jumlahBooking;
+    }
 
     /**
      * Metode private untuk push data antrean ke BPJS.
